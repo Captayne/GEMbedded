@@ -1,0 +1,11 @@
+# pTOS has its own repository
+pTOS/
+# build output
+*.o
+*.elf
+*.map
+*.uf2
+*.TOS
+*.tos
+board-test/build/
+sdcard/
