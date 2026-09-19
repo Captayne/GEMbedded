@@ -11,7 +11,51 @@
 #ifndef GEM_H
 #define GEM_H
 
+/* ---- objects ---- */
+
+typedef struct
+{
+    short ob_next, ob_head, ob_tail;
+    unsigned short ob_type, ob_flags, ob_state;
+    long ob_spec;
+    short ob_x, ob_y, ob_width, ob_height;
+} OBJECT;
+
+#define G_BOX           20
+#define G_TEXT          21
+#define G_BOXTEXT       22
+#define G_IBOX          25
+#define G_BUTTON        26
+#define G_STRING        28
+
+#define NONE            0x0000
+#define SELECTABLE      0x0001
+#define DEFAULT         0x0002
+#define EXIT            0x0004
+#define EDITABLE        0x0008
+#define RBUTTON         0x0010
+#define LASTOB          0x0020
+#define TOUCHEXIT       0x0040
+#define HIDETREE        0x0080
+
+#define NORMAL          0x0000
+#define SELECTED        0x0001
+#define CROSSED         0x0002
+#define CHECKED         0x0004
+#define DISABLED        0x0008
+#define OUTLINED        0x0010
+#define SHADOWED        0x0020
+
+#define MAX_DEPTH       8
+
 /* ---- AES ---- */
+
+#define MU_KEYBD        0x0001
+#define MU_BUTTON       0x0002
+#define MU_M1           0x0004
+#define MU_M2           0x0008
+#define MU_MESAG        0x0010
+#define MU_TIMER        0x0020
 
 #define AC_OPEN         40
 #define AC_CLOSE        41
@@ -39,6 +83,14 @@ short form_dial(short flag, short lx, short ly, short lw, short lh,
 short graf_handle(short *wchar, short *hchar, short *wbox, short *hbox);
 short graf_mouse(short form, const void *mform);
 short wind_update(short mode);
+short objc_draw(OBJECT *tree, short start, short depth,
+                short x, short y, short w, short h);
+short objc_find(OBJECT *tree, short start, short depth, short mx, short my);
+
+/* evnt_multi() for a button press or a timeout: returns the MU_ flags */
+short evnt_multi_button_timer(unsigned long ms, short *mx, short *my,
+                              short *button, short *kstate, short *key,
+                              short *clicks, short *msg);
 
 /* ---- VDI ---- */
 
