@@ -106,6 +106,54 @@ short graf_mouse(short form, const void *mform)
     return aes(78, 1, 1, 1);
 }
 
+short objc_draw(OBJECT *tree, short start, short depth,
+                short x, short y, short w, short h)
+{
+    int_in[0] = start;
+    int_in[1] = depth;
+    int_in[2] = x;
+    int_in[3] = y;
+    int_in[4] = w;
+    int_in[5] = h;
+    addr_in[0] = (long)tree;
+    return aes(42, 6, 1, 1);
+}
+
+short objc_find(OBJECT *tree, short start, short depth, short mx, short my)
+{
+    int_in[0] = start;
+    int_in[1] = depth;
+    int_in[2] = mx;
+    int_in[3] = my;
+    addr_in[0] = (long)tree;
+    return aes(43, 4, 1, 1);
+}
+
+short evnt_multi_button_timer(unsigned long ms, short *mx, short *my,
+                              short *button, short *kstate, short *key,
+                              short *clicks, short *msg)
+{
+    int i;
+
+    for (i = 0; i < 16; i++)
+        int_in[i] = 0;
+    int_in[0] = MU_BUTTON | MU_TIMER | MU_MESAG;
+    int_in[1] = 1;                      /* clicks */
+    int_in[2] = 1;                      /* button mask: left */
+    int_in[3] = 1;                      /* wanted state: pressed */
+    int_in[14] = (short)(ms & 0xffff);
+    int_in[15] = (short)(ms >> 16);
+    addr_in[0] = (long)msg;
+    aes(25, 16, 7, 1);
+    *mx = int_out[1];
+    *my = int_out[2];
+    *button = int_out[3];
+    *kstate = int_out[4];
+    *key = int_out[5];
+    *clicks = int_out[6];
+    return int_out[0];
+}
+
 short wind_update(short mode)
 {
     int_in[0] = mode;
