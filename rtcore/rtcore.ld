@@ -1,14 +1,22 @@
 /*
  * rtcore.ld - linker script of the pTOS real-time core runtime
  *
- * Flash from RTX_IMAGE_ADDR, RAM in core 1's share of the SRAM, after the
- * mailbox; the stack at the very top (SRAM8/SRAM9).  See rtx_rp2350.h.
+ * The image is stored in flash from RTX_IMAGE_ADDR, but only its header
+ * and a start-up stub run from there: everything else -- vector table,
+ * code, read-only and initialised data -- is copied into core 1's share of
+ * the SRAM at start-up and runs from there.  Core 1 then does not depend
+ * on the flash at all: flash being written (which stops execution from
+ * it) or the shared XIP cache being churned by core 0 cannot delay it.
+ *
+ * SRAM: the mailbox at RTX_RAM_BASE, the runtime from +0x200 (the vector
+ * table needs 512-byte alignment), the stack at the very top.  See
+ * rtx_rp2350.h.
  */
 
 MEMORY
 {
     flash : ORIGIN = 0x10800000, LENGTH = 1M
-    ram   : ORIGIN = 0x20072100, LENGTH = 0x20080000 - 0x20072100
+    ram   : ORIGIN = 0x20072200, LENGTH = 0x20080000 - 0x20072200
 }
 
 __stack_top = 0x20082000;
@@ -17,21 +25,24 @@ ENTRY(reset)
 
 SECTIONS
 {
-    .text :
+    /* runs from flash: header, boot vector table, copy loop */
+    .boot :
     {
         KEEP(*(.rtx_header))
-        KEEP(*(.vectors))
-        *(.text .text.* .rodata .rodata.*)
+        KEEP(*(.boot))
     } > flash
 
-    .data :
+    /* stored in flash, runs from SRAM */
+    .ram :
     {
-        __data_start = .;
+        __ram_start = .;
+        KEEP(*(.vectors))
+        *(.text .text.* .rodata .rodata.*)
         *(.data .data.*)
         . = ALIGN(4);
-        __data_end = .;
+        __ram_end = .;
     } > ram AT > flash
-    __data_load = LOADADDR(.data);
+    __ram_load = LOADADDR(.ram);
 
     .bss (NOLOAD) :
     {
