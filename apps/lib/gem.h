@@ -1,0 +1,61 @@
+/*
+ * gem.h - minimal AES and VDI bindings for pTOS programs (ARM)
+ *
+ * Copyright (C) 2026 Andreas Keibel
+ *
+ * Just what the pTOS3000 tools need; the call interface is the one of
+ * Atari GEM (trap #2 = svc 2, r0 = 200 for the AES, 0x73 for the VDI,
+ * r1 = parameter block).
+ */
+
+#ifndef GEM_H
+#define GEM_H
+
+/* ---- AES ---- */
+
+#define AC_OPEN         40
+#define AC_CLOSE        41
+
+#define BEG_UPDATE      1
+#define END_UPDATE      0
+#define BEG_MCTRL       3
+#define END_MCTRL       2
+
+#define FMD_FINISH      3
+
+#define M_OFF           256
+#define M_ON            257
+
+extern short gl_apid;
+
+short appl_init(void);
+short appl_exit(void);
+short evnt_mesag(short *msg);
+short evnt_timer(unsigned long ms);
+short menu_register(short apid, const char *name);
+short form_alert(short defbutton, const char *text);
+short form_dial(short flag, short lx, short ly, short lw, short lh,
+                short bx, short by, short bw, short bh);
+short graf_handle(short *wchar, short *hchar, short *wbox, short *hbox);
+short graf_mouse(short form, const void *mform);
+short wind_update(short mode);
+
+/* ---- VDI ---- */
+
+#define MD_REPLACE      1
+#define MD_TRANS        2
+#define FIS_SOLID       1
+
+short v_opnvwk(short phys_handle);      /* returns the new handle, 0 on error */
+void v_clsvwk(short handle);
+void vs_clip(short handle, short on, const short *xyxy);
+void vswr_mode(short handle, short mode);
+void vsl_color(short handle, short color);
+void vsf_color(short handle, short color);
+void vsf_interior(short handle, short style);
+void vst_color(short handle, short color);
+void v_pline(short handle, short count, const short *xy);
+void vr_recfl(short handle, const short *xyxy);
+void v_gtext(short handle, short x, short y, const char *s);
+
+#endif /* GEM_H */
