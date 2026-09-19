@@ -8,8 +8,8 @@
  *  - at start-up it loads the calibration saved in C:\TOUCHCAL.INF and
  *    hands it to the touch driver -- unless it was just calibrated by hand
  *    at boot (finger on the screen while the machine starts);
- *  - "Touch calibration" in the Desk menu asks for three crosses to be
- *    touched, uses the result at once and offers to save it.
+ *  - "Touch calibration" in the Desk menu asks for nine crosses to be
+ *    touched (least-squares fit), uses the result at once and offers to save it.
  *
  * It talks to the driver through the _TCH cookie (pTOS include/touch.h).
  */
@@ -34,7 +34,8 @@ static const char menu_name[] = "  Touch calibration";
 static struct tch_api *tch;
 static short vh;                        /* VDI workstation */
 static short scr_w, scr_h;
-static short pts[3][2];                 /* the three crosses */
+#define NPOINTS         9
+static short pts[NPOINTS][2];           /* a 3 x 3 grid of crosses */
 
 /* ---- calibration file ---- */
 
@@ -139,7 +140,7 @@ static void read_touch(short *raw)
 static void calibrate(void)
 {
     struct tch_cal old, cal;
-    short raw[3][2];
+    short raw[NPOINTS][2];
     short clip[4] = { 0, 0, scr_w - 1, scr_h - 1 };
     int i, choice;
 
@@ -161,7 +162,7 @@ static void calibrate(void)
         v_gtext(vh, 8, scr_h / 2 - 8, "touch the centre of each cross.");
 
         wait_lifted();                  /* the tap that opened us */
-        for (i = 0; i < 3; i++)
+        for (i = 0; i < NPOINTS; i++)
         {
             cross(pts[i], 1);
             read_touch(raw[i]);
@@ -169,8 +170,8 @@ static void calibrate(void)
             wait_lifted();
         }
 
-        if (tch_compute(&cal, (const short (*)[2])pts,
-                        (const short (*)[2])raw) == 0)
+        if (tch_fit(&cal, (const short (*)[2])pts,
+                    (const short (*)[2])raw, NPOINTS) == 0)
             tch->set_cal(&cal);
 
         tch->set_mouse(1);
@@ -203,9 +204,15 @@ static int init(void)
 
     scr_w = tch->width;
     scr_h = tch->height;
-    pts[0][0] = scr_w / 10;         pts[0][1] = scr_h / 10;
-    pts[1][0] = scr_w - scr_w / 10; pts[1][1] = scr_h / 2;
-    pts[2][0] = scr_w / 2;          pts[2][1] = scr_h - scr_h / 10;
+    {
+        int i;
+
+        for (i = 0; i < NPOINTS; i++)
+        {
+            pts[i][0] = scr_w / 10 + (i % 3) * (scr_w * 4 / 10);
+            pts[i][1] = scr_h / 10 + (i / 3) * (scr_h * 4 / 10);
+        }
+    }
 
     phys = graf_handle(&wchar, &hchar, &wbox, &hbox);
     vh = v_opnvwk(phys);
