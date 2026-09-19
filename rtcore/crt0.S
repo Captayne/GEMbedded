@@ -4,6 +4,11 @@
  * pTOS finds struct rtx_image at the very start of this image
  * (RTX_IMAGE_ADDR) and launches core 1 with the vector table, stack
  * pointer and entry point recorded there.
+ *
+ * Only the header, a boot vector table and the copy loop below run from
+ * flash.  The copy loop moves the rest of the runtime into core 1's SRAM
+ * (see rtcore.ld) and continues there, so that nothing core 1 does ever
+ * waits for the flash.
  */
 
 #include "rtx_rp2350.h"
@@ -16,42 +21,38 @@
         .section .rtx_header, "a"
         .word   RTX_IMAGE_MAGIC
         .word   1                       // version
-        .word   vectors
+        .word   boot_vectors
         .word   __stack_top
         .word   reset + 1               // Thumb
 name:   .ascii  "IRKernel real-time core"
         .space  44 - (. - name)
 
-// ==== vector table ==========================================================
-// Core 1 uses no interrupts yet; every exception is a fault.
+// ==== boot vector table (flash), in use until the copy is done ============
 
-        .section .vectors, "a"
+        .section .boot, "ax"
         .balign 512
-vectors:
+boot_vectors:
         .word   __stack_top
         .word   reset + 1
-        .rept   14
-        .word   fault + 1
-        .endr
-        .rept   52
-        .word   fault + 1
+        .rept   66
+        .word   boot_fault + 1
         .endr
 
-// ==== reset =================================================================
+        .balign 4
+        .type   boot_fault, %function
+boot_fault:
+        b       boot_fault
 
-        .text
+// ==== reset (flash): copy the runtime into SRAM and start it there ========
+
         .balign 4
         .globl  reset
         .type   reset, %function
 reset:
-        ldr     r0, =vectors
-        ldr     r1, =0xe000ed08         // VTOR (core 1's own)
-        str     r0, [r1]
-
-        // .data from flash to RAM
-        ldr     r0, =__data_start
-        ldr     r1, =__data_end
-        ldr     r2, =__data_load
+        // vector table, code, read-only and initialised data
+        ldr     r0, =__ram_start
+        ldr     r1, =__ram_end
+        ldr     r2, =__ram_load
 1:      cmp     r0, r1
         bhs     2f
         ldr     r3, [r2], #4
@@ -67,13 +68,37 @@ reset:
         str     r2, [r0], #4
         b       3b
 4:
-        bl      main
+        ldr     r0, =vectors
+        ldr     r1, =0xe000ed08         // VTOR (core 1's own)
+        str     r0, [r1]
+        dsb
+        isb
+        // main is in SRAM, out of reach of a bl from flash
+        ldr     r0, =main
+        blx     r0
 5:      b       5b
+        .ltorg
+
+// ==== vector table (SRAM) ==================================================
+// Core 1 uses no interrupts yet; every exception is a fault.
+
+        .section .vectors, "a"
+        .balign 512
+vectors:
+        .word   __stack_top
+        .word   reset + 1
+        .rept   14
+        .word   fault + 1
+        .endr
+        .rept   52
+        .word   fault + 1
+        .endr
 
 // ==== faults ================================================================
 // Record where it happened in the mailbox, withdraw the runtime (pTOS then
 // answers every call with RTX_E_NOCORE) and stop.
 
+        .text
         .balign 4
         .type   fault, %function
 fault:
