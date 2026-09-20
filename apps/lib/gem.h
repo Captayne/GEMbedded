@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2026 Andreas Keibel
  *
- * Just what the pTOS3000 tools need; the call interface is the one of
+ * Just what the GEMbedded tools need; the call interface is the one of
  * Atari GEM (trap #2 = svc 2, r0 = 200 for the AES, 0x73 for the VDI,
  * r1 = parameter block).
  */
