@@ -12,9 +12,8 @@ A program has two halves:
 
 * the **normal half** runs on the system core: windows, dialogues, files,
   written like any GEM program;
-* the **real-time half** runs on the second core under
-  [IRKernel](https://github.com/keibel/IRKernel), called on a fixed period
-  and undisturbed by whatever the user interface is doing.
+* the **real-time half** runs on the second core under IRKernel, called on
+  a fixed period and undisturbed by whatever the user interface is doing.
 
 The reference application is a 3D printer: stepper pulses on the real-time
 core, the user interface on the system core, on one chip for a few euros.
