@@ -148,7 +148,17 @@ static void draw_source(const char *text)
  * Eight corners at (+-20, +-20, +-20), turned about two axes and thrown
  * onto the screen.  Everything in fixed point: the sine table is scaled
  * by 1024, and the products are taken in longs before being shifted
- * back.  There is no floating point here and no need for any.
+ * back.
+ *
+ * Not because this chip cannot do better -- both Cortex-M33 cores have
+ * an FPU -- but because nothing here is built to use it: every Makefile
+ * says -mfloat-abi=soft, so a sinf() would be emulated in software and
+ * cost far more than a table lookup and two multiplies.  And the AES
+ * context switch saves no FPU registers at all, so s16..s31 would not
+ * survive a GEM process giving way.  IRKernel is ready for it
+ * (IRK_CTX_HAS_FPU, 25 words instead of 9); pTOS is not.  Turning the
+ * FPU on is worth doing -- kinematics and control loops are exactly
+ * where soft float hurts -- but it is its own piece of work.
  */
 
 #define CUBE_CX     280         /* where it sits: top right */
