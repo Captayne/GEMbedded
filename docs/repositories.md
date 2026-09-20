@@ -38,7 +38,7 @@ Nothing has been published.  When it is time:
 
     # 3. tie them together
     git submodule add git@github.com:<user>/pTOS.git pTOS
-    git submodule add git@github.com:<user>/IRKernel.git third_party/IRKernel
+    git submodule add <IRKernel repository> third_party/IRKernel
 
 Then `git clone --recursive` brings everything.  Private repositories
 work the same way and can be made public later.
