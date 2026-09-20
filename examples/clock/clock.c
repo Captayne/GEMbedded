@@ -143,6 +143,142 @@ static void draw_source(const char *text)
 }
 
 
+/* ---- the cube ---------------------------------------------------- */
+/*
+ * Eight corners at (+-20, +-20, +-20), turned about two axes and thrown
+ * onto the screen.  Everything in fixed point: the sine table is scaled
+ * by 1024, and the products are taken in longs before being shifted
+ * back.  There is no floating point here and no need for any.
+ */
+
+#define CUBE_CX     280         /* where it sits: top right */
+#define CUBE_CY      46
+#define CUBE_R       20         /* half an edge */
+#define CUBE_D      160         /* eye distance, for the perspective */
+#define CUBE_BOX     38         /* the square to wipe before redrawing */
+
+/* sin(i * 360/256 degrees) * 1024.  Finer than the dial's table: at
+   twenty frames a second a six degree step would be visibly jerky. */
+static const short sin256[256] = {
+        0,    25,    50,    75,   100,   125,   150,   175,
+      200,   224,   249,   273,   297,   321,   345,   369,
+      392,   415,   438,   460,   483,   505,   526,   548,
+      569,   590,   610,   630,   650,   669,   688,   706,
+      724,   742,   759,   775,   792,   807,   822,   837,
+      851,   865,   878,   891,   903,   915,   926,   936,
+      946,   955,   964,   972,   980,   987,   993,   999,
+     1004,  1009,  1013,  1016,  1019,  1021,  1023,  1024,
+     1024,  1024,  1023,  1021,  1019,  1016,  1013,  1009,
+     1004,   999,   993,   987,   980,   972,   964,   955,
+      946,   936,   926,   915,   903,   891,   878,   865,
+      851,   837,   822,   807,   792,   775,   759,   742,
+      724,   706,   688,   669,   650,   630,   610,   590,
+      569,   548,   526,   505,   483,   460,   438,   415,
+      392,   369,   345,   321,   297,   273,   249,   224,
+      200,   175,   150,   125,   100,    75,    50,    25,
+        0,   -25,   -50,   -75,  -100,  -125,  -150,  -175,
+     -200,  -224,  -249,  -273,  -297,  -321,  -345,  -369,
+     -392,  -415,  -438,  -460,  -483,  -505,  -526,  -548,
+     -569,  -590,  -610,  -630,  -650,  -669,  -688,  -706,
+     -724,  -742,  -759,  -775,  -792,  -807,  -822,  -837,
+     -851,  -865,  -878,  -891,  -903,  -915,  -926,  -936,
+     -946,  -955,  -964,  -972,  -980,  -987,  -993,  -999,
+    -1004, -1009, -1013, -1016, -1019, -1021, -1023, -1024,
+    -1024, -1024, -1023, -1021, -1019, -1016, -1013, -1009,
+    -1004,  -999,  -993,  -987,  -980,  -972,  -964,  -955,
+     -946,  -936,  -926,  -915,  -903,  -891,  -878,  -865,
+     -851,  -837,  -822,  -807,  -792,  -775,  -759,  -742,
+     -724,  -706,  -688,  -669,  -650,  -630,  -610,  -590,
+     -569,  -548,  -526,  -505,  -483,  -460,  -438,  -415,
+     -392,  -369,  -345,  -321,  -297,  -273,  -249,  -224,
+     -200,  -175,  -150,  -125,  -100,   -75,   -50,   -25
+};
+
+#define S(i)    (sin256[(i) & 255])
+#define C(i)    (sin256[((i) + 64) & 255])
+
+static const signed char corner[8][3] = {
+    { -1, -1, -1 }, {  1, -1, -1 }, {  1,  1, -1 }, { -1,  1, -1 },
+    { -1, -1,  1 }, {  1, -1,  1 }, {  1,  1,  1 }, { -1,  1,  1 }
+};
+
+static const unsigned char edge[12][2] = {
+    { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },     /* the back face */
+    { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },     /* the front face */
+    { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }      /* and the struts */
+};
+
+/*
+ * Two buffers: the real-time half fills the one that is not being read,
+ * then says which is newest.  One writer, one reader, no lock -- and a
+ * frame is never seen half finished.
+ */
+static volatile struct {
+    short x[8], y[8];
+} frame[2];
+
+static volatile unsigned char newest;
+
+/* Runs on the real-time core, twenty times a second. */
+static void spin(void *arg)
+{
+    static unsigned char ax, ay;
+    volatile short *px, *py;
+    long x, y, z, y1, z1, x2, z2, d;
+    int  i;
+
+    (void)arg;
+
+    px = frame[1 - newest].x;
+    py = frame[1 - newest].y;
+
+    for (i = 0; i < 8; i++)
+    {
+        x = corner[i][0] * CUBE_R;
+        y = corner[i][1] * CUBE_R;
+        z = corner[i][2] * CUBE_R;
+
+        /* about x */
+        y1 = (y * C(ax) - z * S(ax)) >> 10;
+        z1 = (y * S(ax) + z * C(ax)) >> 10;
+
+        /* then about y */
+        x2 = (x * C(ay) + z1 * S(ay)) >> 10;
+        z2 = (z1 * C(ay) - x * S(ay)) >> 10;
+
+        /* and onto the screen, with as much perspective as a cube this
+           small can show */
+        d = CUBE_D + z2;
+        px[i] = (short)(CUBE_CX + (x2 * CUBE_D) / d);
+        py[i] = (short)(CUBE_CY - (y1 * CUBE_D) / d);
+    }
+
+    newest = (unsigned char)(1 - newest);
+
+    ax += 3;                    /* two speeds, so that it tumbles */
+    ay += 2;
+}
+
+/* Drawn by the GEM half, from whichever frame is newest. */
+static void draw_cube(void)
+{
+    volatile short *px, *py;
+    unsigned char n = newest;
+    int i;
+
+    box(CUBE_CX - CUBE_BOX, CUBE_CY - CUBE_BOX,
+        CUBE_BOX * 2, CUBE_BOX * 2, WHITE);
+
+    px = frame[n].x;
+    py = frame[n].y;
+
+    vsl_color(vdi, BLACK);
+    for (i = 0; i < 12; i++)
+        line(px[edge[i][0]], py[edge[i][0]],
+             px[edge[i][1]], py[edge[i][1]]);
+}
+
+
 /* ---- the real-time half ----------------------------------------- */
 /*
  * Runs on the real-time core, entered once a second.  No GEMDOS, no
@@ -179,7 +315,7 @@ int main(void)
     short wchar, hchar, wbox, hbox;
     short apid, shown = 0;
     long  value = 0;
-    irk_handle t = IRK_NONE;
+    irk_handle t = IRK_NONE, c = IRK_NONE;
 
     apid = appl_init();
     if (apid < 0)
@@ -211,7 +347,16 @@ int main(void)
         {
             k->set_cyclic(t, 1000000UL, 0);     /* once a second */
             k->task_resume(t);
-            draw_source("seconds from the real-time core");
+            draw_source("seconds and cube from the real-time core");
+        }
+
+        /* The second task: the same core, twenty times the rate.  Two
+           periods that do not divide each other, kept by one kernel. */
+        c = k->task_new(IRK_CORE_RT, spin, 0, 100, 0, 1024, 0);
+        if (c != IRK_NONE)
+        {
+            k->set_cyclic(c, 50000UL, 0);       /* twenty a second */
+            k->task_resume(c);
         }
     }
     if (t == IRK_NONE)
@@ -249,6 +394,9 @@ int main(void)
             }
         }
 
+        if (c != IRK_NONE)
+            draw_cube();
+
         if (touched_cancel())
             break;
     }
@@ -257,6 +405,8 @@ int main(void)
        its stack and its code are this program's memory. */
     if (t != IRK_NONE)
         k->task_kill(t);
+    if (c != IRK_NONE)
+        k->task_kill(c);
 
     graf_mouse(257, 0L);        /* M_ON */
     v_clsvwk(vdi);
