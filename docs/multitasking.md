@@ -89,6 +89,71 @@ this project:
   bar for the system, not one per application.
 
 
+## Program shape
+
+A program is one GEM task on core 0.  That does not change, and a
+program that never asks for anything else behaves exactly as it does
+today -- no extra stack, no extra task, no cost.
+
+If it wants a second half, **it asks for one itself**: its GEM half
+creates a *headless* task on core 1.  Headless means what rtcore means
+today -- no AES, no VDI, no GEMDOS, no console.  It computes, it drives
+hardware, it keeps deadlines.  Creation is explicit; ownership is not.
+
+**Ownership is not optional.**  The headless task's stack lives in the
+program's own memory, and GEMDOS frees that memory when the program
+ends.  So `Pterm` kills the program's core-1 tasks *before* releasing the
+TPA.  Without that, a task keeps running on a freed stack -- the same
+failure that took the IRKernel host port apart when a context was reused
+after being released, only one storey up.
+
+### Talking back to the UI
+
+A headless task cannot draw: it has no operating system.  What it has is
+shared memory -- both halves see the program's own data, because it *is*
+the same program -- and one notification path:
+
+```
+core 1: write result to shared memory, raise a flag
+core 0: forkq()  ->  AES message  ->  evnt_multi(MU_MESAG) returns
+```
+
+That is not a new mechanism on the application's side.  The GEM half is
+already sitting in `evnt_multi()` waiting for messages; this is one more
+sender.  `forkq()` exists for exactly this shape of problem: something
+happened asynchronously, deliver it at the next safe point.
+
+Two limits to respect.  The fork ring is bounded (`NFORKS`) and
+`forkq()` returns -1 when it is full, so a task must **coalesce**: one
+pending flag per program, not one message per event.  And when core 0 is
+in `stop_until_interrupt()`, nothing from core 1 wakes it -- the
+millisecond timer does, which bounds the latency at about 1 ms.  That is
+ample for a user interface.  The RP2350's SIO FIFO has a doorbell
+interrupt on the opposite core if that is ever not enough; it is not
+worth building before the latency is measured and found wanting.
+
+### Do not spin
+
+`for (;;) yield();` reads like the `IRKernel_loops.h` model, but on a
+real-time core an always-runnable task takes its share of the processor
+and that share comes off the cyclic tasks' margin.  On Arduino there is
+nothing else to do; here there is.  A headless task **blocks** -- on a
+queue or a semaphore -- or it is cyclic with a declared period.
+
+### Threads on core 0, later
+
+"Extra tasks only on core 1" is a consequence, not a rule: a core-1 task
+cannot touch the operating system, and a second *process* on core 0 would
+need its own GEMDOS context.
+
+But a second task on core 0 that **shares its creator's `run`** is a
+thread, not a process: same file handles, same current directory, same
+memory owner.  `run` does not change across that switch at all.  That is
+the cheap way to do background work that needs GEMDOS -- loading a file,
+say, which is impossible on core 1 by definition.  Worth keeping the door
+open for; not worth building first.
+
+
 ## Pexec: a new mode, mode 0 unchanged
 
 `Pexec(0, ...)` must stay synchronous.  Every TOS program relies on it
