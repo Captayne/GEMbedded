@@ -19,3 +19,6 @@ tools/*.png
 tools/*.log
 tools/consolelog.txt
 tools/dump.txt
+
+# vendor photos and drawings (Waveshare and shops): not ours to redistribute
+Hardware/
