@@ -293,7 +293,10 @@ out and what each one costs.
 - IRKernel's deadlock detection (`IRK_DEADLOCK_CYCLES`) versus an AES that
   is legitimately idle with every process waiting.
 - `NUM_PDS`, the hardcoded `pd_index()` and `gl_mntree` as a single global
-  menu tree all block real multi-app, independently of this seam.
+  menu tree all block real multi-app, independently of this seam.  What
+  else stands in the way of a program being a task is in
+  [multitasking.md](multitasking.md) -- chiefly that GEMDOS' `run` does
+  not follow a task switch today.
 
 
 ## Steps
