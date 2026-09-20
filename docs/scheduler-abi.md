@@ -4,10 +4,17 @@ A seam between the AES and whatever schedules it, so that GEMbedded can
 run on the dispatcher pTOS has today *or* on IRKernel, chosen at build
 time.
 
-The motive is engineering, not licensing.  The default backend stays the
-known-good AES dispatcher, which keeps the fork anchored to upstream pTOS
-and gives an A/B reference to measure against.  What the seam is **not**
-is a licence boundary -- see the last section.
+The seam carries two things, and keeping them apart is the whole point.
+Technically it keeps the known-good AES dispatcher as the default, which
+anchors the fork to upstream pTOS and gives an A/B reference to measure
+against.  Commercially it is the product boundary: IRKernel is a
+separately licensed component that a user has to go and get, and then
+select on purpose.
+
+What it does *not* do is settle the copyright question -- whether a
+combination that somebody distributes is two programs or one derived
+work.  That is carried by the architecture, not by the switch.  The last
+two sections say which is which.
 
 
 ## What the AES scheduler actually is
@@ -117,28 +124,87 @@ The AES creates its processes with their UDA and stack already in place.
 | behaviour | unchanged by construction | equal priorities approximate today |
 | status | default | opt-in |
 
-A Kconfig choice under `aes/Kconfig` selects one.  Keeping the AES
+A Kconfig choice under `sched/Kconfig` selects one.  Keeping the AES
 backend as the default is not caution for its own sake: it is the
 reference the IRKernel backend gets measured against, the same way
 running rtcore from SRAM was measured (worst-case lateness 25 us -> 8 us).
 
 
-## What this is not
+## Product boundary
 
-It is not a licence boundary, and it should not be presented as one.  The
-result is a single firmware image, one address space, one linker script,
-one timer tick; an `SVC` within that image is not a process boundary.  The
-FSF's "arm's length" reasoning is about separate *programs*, and an
-interface visibly built to evade the GPL argues against itself.
+IRKernel is not part of GEMbedded.  Cloning this repository and running
+`make` never produces it, and no build ever fetches it.  The build knows
+three states, and only the last one is a decision:
 
-The project already has a separation that does hold: **rtcore on core 1**
--- its own image at its own flash address, loaded at runtime, talking only
-through the MIT-licensed `_RTX` cookie interface.
+| State | How it arises | What the build does |
+|---|---|---|
+| **not installed** | nothing found | builds `sched_aes`, says nothing |
+| **available** | detection found it | builds `sched_aes` and reports once: detected, remains disabled, separately licensed |
+| **enabled** | user selects it *and* names a licence file | builds `sched_irk`, stamps the licence id into the image |
 
-The way to put IRKernel inside the AES without contortions is option A in
-[licensing.md](licensing.md): dual-licence it, GPL arm for GEMbedded,
-commercial arm for everyone else.  The seam is then free to sit where it
-belongs technically instead of where a licence pushes it.
+Detection is automatic; enabling never is.  A directory lying next to ours
+is not consent.
+
+Where this lives in the build system we actually have -- make plus
+Kconfig (`tools/genconfig.py`, `tools/kconfig.mk`), no CMake:
+
+| Piece | File | Job |
+|---|---|---|
+| detection | `sched/detect.mk` | `IRK_ROOT` from the command line, the environment, an installed SDK, and `../IRKernel` only as a last resort.  Sets `IRK_FOUND` and `IRK_VERSION` and nothing else |
+| selection | `sched/Kconfig` | a `choice`: `CONF_SCHED_AES` (default) or `CONF_SCHED_IRKERNEL`, whose help text says plainly what it is |
+| gate | `Makefile` | selected but missing -> abort, with where to obtain it.  Found but not selected -> the "available" note.  Both -> configuration block in the build log |
+
+Consent is a **make variable, not a config symbol**:
+
+    make ... IRKERNEL_LICENSE=/path/to/irkernel.license
+
+That file is the act and the identity at once: licensee and licence id
+come from it and go into the firmware manifest, next to the pTOS version
+and the ABI version.  Keeping it out of `.config` is deliberate.  Consent
+stored in a configuration file is consent nobody remembers giving, and it
+would travel with the directory to whoever gets it next.  For everyday
+work `local.mk` may set it -- that file is untracked and has to be created
+on purpose.
+
+`__has_include` appears in the adapter only as a safety net: `#error` when
+the configuration is active but the kernel is missing.  Never to switch
+anything on.  Presence is not consent.
+
+
+## What the seam does not decide
+
+Whether a distributed combination counts as two programs or as one
+derived work.  No switch and no checkbox decides that, and it is worth
+being blunt about it here so that nobody later mistakes the gate for a
+licence.
+
+The gate carries the **contract**: who chose, what they accepted, which
+licence id sits in which image.  The **architecture** carries the
+copyright question, and only while these five properties hold:
+
+1. pTOS is complete and fully functional without IRKernel.  `sched_aes` is
+   not a stub kept alive for appearances -- it is the default, and it
+   stays maintained.
+2. IRKernel is a product in its own right (CNC, robotics, plain embedded),
+   with an ABI useful to someone who has never heard of GEM.
+3. The build never downloads IRKernel and never ships it as a locked blob
+   "just in case".
+4. The user obtains it separately and enables it explicitly.
+5. Only generic kernel operations cross the seam.  No `AESPD *`, no `PD *`,
+   no `rlr`, no `nrl`, no `EVB *`.  And the calls carry neutral names
+   (`k_*`): an interface named after one implementation is not an
+   interface.
+
+The strongest form is the one rtcore already uses on core 1 -- a separate
+image at its own flash address, loaded at runtime, reached only through a
+versioned ABI.  Applied to the scheduler it costs an `SVC` per switch,
+which a cooperative system takes rarely.  The open question there is who
+owns the `SVC` vector, since pTOS already uses it for the TOS traps
+(`aes/arch/armv8m/gemasm.S`, `aestrap` and the `svc #255` resume
+trampoline).
+
+Notes, not legal advice.  [licensing.md](licensing.md) has the three ways
+out and what each one costs.
 
 
 ## Open questions
@@ -155,5 +221,9 @@ belongs technically instead of where a licence pushes it.
 
 1. **A** -- introduce the seam, implement `sched_aes.c`, change nothing
    observable.  Verifiable: the desktop behaves exactly as before.
-2. **B** -- `sched_irk.c`, measured against A.
-3. **C** -- multi-app and cyclic tasks exposed to GEM programs in the SDK.
+2. **B** -- the gate: `sched/detect.mk`, `sched/Kconfig`, the three states
+   and the licence manifest.  Verifiable without IRKernel being present at
+   all -- the "not installed" and "available" paths are the two that every
+   user will see.
+3. **C** -- `sched_irk.c`, measured against A.
+4. **D** -- multi-app and cyclic tasks exposed to GEM programs in the SDK.
