@@ -37,8 +37,18 @@ its own.  Worth knowing: inside a GPL system a per-device fee cannot
 really be enforced, because whoever receives the combined work may pass it
 on.  The commercial value stays with IRKernel *outside* GEMbedded.
 
-The scheduler itself, and why an ABI around it does not change this
-answer, is in [scheduler-abi.md](scheduler-abi.md).
+There is a fourth shape, and it is the one being designed:
+**B'** -- keep IRKernel a separate program even when the AES uses it.  Its
+own image at its own flash address, loaded at runtime, reached only
+through a versioned ABI, with pTOS complete and fully functional without
+it.  Two programs shipped together are an aggregation, so the per-device
+fee stays enforceable and pTOS stays GPL.  That is the rtcore model,
+applied to core 0.
+
+[scheduler-abi.md](scheduler-abi.md) has that side: the seam, the build
+gate that makes enabling IRKernel a deliberate act of the user, and the
+five properties the separation depends on.  The gate carries the
+contract -- it does not decide the question above.
 
 **B -- keep IRKernel out of the kernel.**  It stays on core 1 and as a
 library for applications, and the AES keeps its own dispatcher.  Full
