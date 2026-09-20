@@ -130,6 +130,30 @@ reference the IRKernel backend gets measured against, the same way
 running rtcore from SRAM was measured (worst-case lateness 25 us -> 8 us).
 
 
+## Linked or loaded
+
+Two separate images are the strong form, but they are not the only one,
+and insisting on them from day one would stall the work.  The seam makes
+the coupling behind it exchangeable, so one adapter serves both:
+
+| Mode | Coupling | Intended for |
+|---|---|---|
+| **1 -- AES** | none | everyone; the default |
+| **2 -- IRKernel, linked** | direct calls into `libirkernel.a` | developing the scheduler, and licensees running it on their own devices |
+| **3 -- IRKernel, external** | `SVC` into a separate image at its own flash address | products redistributed to third parties |
+
+`sched_irk.c` is the same file in modes 2 and 3.  Only the binding
+differs: `sched_irk_link.c` resolves the `k_*` calls directly,
+`sched_irk_svc.c` through `SVC` stubs.  That is what a neutral ABI buys --
+mode 3 can arrive later without GEMbedded being taken apart again.
+
+Mode 2 is the honest development path and gets built first.  What it must
+not do is carry a claim it cannot support: **a single ELF holding GPL code
+and a proprietary kernel is the hard case for the "two programs"
+argument, not the easy one.**  The build log says that in plain words
+rather than printing a licence id and letting the reader infer the rest.
+
+
 ## Product boundary
 
 IRKernel is not part of GEMbedded.  Cloning this repository and running
@@ -200,13 +224,26 @@ licence id.  Both repositories also carry `.gitignore` entries for
 `*.license` as a second net.
 
 "Valid" means well-formed and applicable: licensee, product, permitted
-use, licence id, the ABI version it was issued for.  A signature (public
-key in the GPL adapter, private key with the vendor) makes the file
-checkable rather than merely readable -- but its worth is **evidentiary,
-not enforcing**.  The adapter is GPL, so anyone can read and change the
-check.  What actually stops unlicensed use is that IRKernel is not
-downloadable anywhere; the manifest records who agreed to what, which is
-what a licence gate is for.
+use, licence id, the ABI version it was issued for.  A signature (private
+key with the vendor, public key in the checker) makes the file checkable
+rather than merely readable.
+
+Where the check sits matters less than how the kernel is delivered.  In
+the GPL adapter it is readable and changeable by anyone, so it documents
+rather than enforces.  Inside IRKernel it is harder to remove -- but only
+as hard as the delivery form makes it: shipped as a binary that means
+something, shipped as source it is theatre.  What actually prevents
+unlicensed use is that IRKernel is not downloadable anywhere.  The
+manifest records who agreed to what, which is what a licence gate is for.
+
+One rule holds regardless of where the check lives: **a failed check never
+stops the kernel from scheduling.**  `irk_license_valid()` in
+`IRKernel.h` reports; the kernel never asks.  A scheduler that withholds
+its work over a contractual question stops a machine, and it will do so at
+the worst moment and over the pettiest cause -- a clock, a file that did
+not get copied, a flash error.  If enforcement is ever wanted, it belongs
+in a clearly labelled evaluation edition, never in the one that runs a
+robot.
 
 `__has_include` appears in the adapter only as a safety net: `#error` when
 the configuration is active but the kernel is missing.  Never to switch
@@ -267,5 +304,8 @@ out and what each one costs.
    and the licence manifest.  Verifiable without IRKernel being present at
    all -- the "not installed" and "available" paths are the two that every
    user will see.
-3. **C** -- `sched_irk.c`, measured against A.
-4. **D** -- multi-app and cyclic tasks exposed to GEM programs in the SDK.
+3. **C** -- `sched_irk.c` in mode 2 (linked), measured against A.
+4. **D** -- mode 3, the separate image, when a product is actually
+   redistributed to third parties.  Not before: the work is real, and
+   mode 2 answers every question except that one.
+5. **E** -- multi-app and cyclic tasks exposed to GEM programs in the SDK.
