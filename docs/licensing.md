@@ -31,11 +31,11 @@ a GPL-compatible licence for that use.
 ## The ways out
 
 **A -- dual licence IRKernel (GPL v2+ OR commercial).**  As its sole
-author, Andreas Keibel can offer it under both.  pTOS3000 uses the GPL
+author, Andreas Keibel can offer it under both.  GEMbedded uses the GPL
 arm; the Arduino world keeps buying commercial licences for IRKernel on
 its own.  Worth knowing: inside a GPL system a per-device fee cannot
 really be enforced, because whoever receives the combined work may pass it
-on.  The commercial value stays with IRKernel *outside* pTOS3000.
+on.  The commercial value stays with IRKernel *outside* GEMbedded.
 
 **B -- keep IRKernel out of the kernel.**  It stays on core 1 and as a
 library for applications, and the AES keeps its own dispatcher.  Full
