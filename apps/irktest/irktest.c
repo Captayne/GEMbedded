@@ -35,6 +35,47 @@
 #include <mint/mintbind.h>
 #include "irk.h"
 
+/*
+ * Just enough AES to receive a message.  libcmini has no bindings for
+ * it, and a whole library would be a lot to carry for three calls: the
+ * AES is one trap, and its parameter block is six pointers.
+ */
+static short control[5], global[16], int_in[16], int_out[16];
+static long  addr_in[8], addr_out[8];
+static void *aespb[6] = { control, global, int_in, int_out, addr_in, addr_out };
+
+static short aes(short op, short nintin, short nintout, short naddrin)
+{
+    register long  r0 __asm__("r0") = 200;
+    register void *r1 __asm__("r1") = aespb;
+
+    control[0] = op;
+    control[1] = nintin;
+    control[2] = nintout;
+    control[3] = naddrin;
+    __asm__ volatile ("svc 2"
+                      : "+r"(r0), "+r"(r1)
+                      :
+                      : "r2", "r3", "r12", "lr", "memory", "cc");
+    return int_out[0];
+}
+
+static short appl_init(void)   { return aes(10, 0, 1, 0); }
+static short appl_exit(void)   { return aes(19, 0, 1, 0); }
+
+/* evnt_multi, asked only for messages and a timeout */
+static short evnt_mesag_timer(unsigned long ms, short *msg)
+{
+    int_in[0] = 0x0010 | 0x0020;        /* MU_MESAG | MU_TIMER */
+    int_in[1] = int_in[2] = int_in[3] = 0;
+    int_in[4] = int_in[5] = int_in[6] = int_in[7] = int_in[8] = 0;
+    int_in[9] = int_in[10] = int_in[11] = int_in[12] = int_in[13] = 0;
+    int_in[14] = (short)(ms & 0xffff);
+    int_in[15] = (short)(ms >> 16);
+    addr_in[0] = (long)msg;
+    return aes(25, 16, 7, 1);
+}
+
 static struct irk_api *k;       /* here */
 static struct irk_api *rt;      /* over there */
 
@@ -109,6 +150,23 @@ static void sampler(void *arg)
         s.us = rt->now_us();
         rt->queue_send(queue, &s);      /* waits when it is full */
         ticks++;
+    }
+    ended = 1;
+}
+
+/* Reports upwards, as fast as it can: the point is that the newest
+   values arrive and the AES is not flooded, not that every call lands. */
+static void reporter(void *arg)
+{
+    unsigned long n = 0;
+
+    (void)arg;
+    while (!stop)
+    {
+        n++;
+        rt->notify(n, rt->now_us());
+        ticks++;
+        rt->delay_us(200);
     }
     ended = 1;
 }
@@ -296,6 +354,78 @@ static void stage_queue(void)
 }
 
 
+static void stage_notify(void)
+{
+    irk_handle t;
+    short  apid, msg[8], ev;
+    long   got = 0;
+    unsigned long last = 0, sent;
+    int    i;
+
+    stage("A headless task reaches the user interface");
+
+    apid = appl_init();
+    ok("this program is known to the AES", apid >= 0);
+    if (apid < 0)
+        return;
+
+    ok("the kernel was told where to deliver",
+       k->notify_to((unsigned short)apid) == IRK_OK);
+
+    ticks = 0;
+    stop = 0;
+    ended = 0;
+
+    t = k->task_new(IRK_CORE_RT, reporter, 0, 100, 0, 1024, 0);
+    ok("the reporting task was created", t != IRK_NONE);
+    if (t == IRK_NONE)
+    {
+        appl_exit();
+        return;
+    }
+
+    /* Collect for about a second.  evnt_multi returns on a message or
+       when the timer runs out, so this waits properly instead of
+       spinning -- which is the whole point of the exercise. */
+    for (i = 0; i < 40 && got < 20; i++)
+    {
+        ev = evnt_mesag_timer(50, msg);
+        if (ev & 0x0010)                /* MU_MESAG */
+        {
+            if (msg[0] != IRK_MSG)
+                continue;
+            if (got < 3)
+                printf("  message from task %d: %lu at %lu us\r\n",
+                       msg[3],
+                       ((unsigned long)(unsigned short)msg[4] << 16)
+                           | (unsigned short)msg[5],
+                       ((unsigned long)(unsigned short)msg[6] << 16)
+                           | (unsigned short)msg[7]);
+            last = ((unsigned long)(unsigned short)msg[4] << 16)
+                   | (unsigned short)msg[5];
+            got++;
+        }
+    }
+
+    sent = ticks;
+    printf("  sent %lu, received %ld, newest value seen %lu\r\n",
+           sent, got, last);
+
+    ok("messages arrived at all", got > 0);
+    ok("they name the task that sent them", msg[3] == (short)t);
+    ok("coalesced, not queued up", got <= (long)sent);
+    ok("and the newest values came through", last > 0 && last <= sent);
+
+    stop = 1;
+    for (i = 0; i < 50 && !ended; i++)
+        wait_ms(10);
+    ok("the reporter ended", ended != 0);
+
+    k->task_kill(t);
+    appl_exit();
+}
+
+
 int main(void)
 {
     long value = 0;
@@ -318,6 +448,7 @@ int main(void)
         stage_task();
         stage_cyclic();
         stage_queue();
+        stage_notify();
     }
 
     printf("\r\n%s\r\n", failures ? "FAILURES ABOVE" : "all stages passed");
