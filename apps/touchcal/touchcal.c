@@ -1,5 +1,5 @@
 /*
- * touchcal.c - touch screen calibration for pTOS3000
+ * touchcal.c - touch screen calibration for GEMbedded
  *
  * Copyright (C) 2026 Andreas Keibel
  *

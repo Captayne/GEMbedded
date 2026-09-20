@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ptosdeploy.py - send a program to a pTOS3000 machine over the USB console
+"""ptosdeploy.py - send a program to a GEMbedded machine over the USB console
 
 DEPLOY.PRG must be running on the machine; nothing is accepted otherwise.
 It writes the file to F:\\ and, when it is set to, runs it.

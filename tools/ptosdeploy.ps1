@@ -1,4 +1,4 @@
-# ptosdeploy.ps1 - send a program to a pTOS3000 machine over the USB console
+# ptosdeploy.ps1 - send a program to a GEMbedded machine over the USB console
 #
 # The same transfer as tools/ptosdeploy.py, without needing pyserial.
 # DEPLOY.PRG must be running on the machine.

@@ -1,5 +1,5 @@
 /*
- * deploy.c - receive a program over the USB console (pTOS3000)
+ * deploy.c - receive a program over the USB console (GEMbedded)
  *
  * Copyright (C) 2026 Andreas Keibel
  *
@@ -68,7 +68,7 @@ static void build(void)
 {
     set_obj(O_ROOT, -1, O_TITLE, O_QUIT, G_BOX, 0x00021100L,
             0, 0, scr_w, scr_h);
-    set_obj(O_TITLE, O_STATUS, -1, -1, G_STRING, (long)"pTOS3000 deploy",
+    set_obj(O_TITLE, O_STATUS, -1, -1, G_STRING, (long)"GEMbedded deploy",
             16, 16, 8 * 15, 16);
     set_obj(O_STATUS, O_RUN, -1, -1, G_STRING, (long)status,
             16, 48, scr_w - 32, 16);
