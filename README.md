@@ -1,9 +1,9 @@
-# pTOS3000
+# GEMbedded
 
 **A graphical operating system on a microcontroller, where real-time control
 is an ordinary application.**
 
-pTOS3000 runs [pTOS](https://github.com/kelihlodversson/pTOS) — a portable
+GEMbedded runs [pTOS](https://github.com/kelihlodversson/pTOS) — a portable
 descendant of EmuTOS, the free Atari TOS — on an RP2350 board, with a
 display, touch, files and GEM windows, while one processor core stays free
 for control loops that must be on time.

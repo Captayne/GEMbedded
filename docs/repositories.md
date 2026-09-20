@@ -2,7 +2,7 @@
 
 Three repositories, each keeping its own history and licence:
 
-    pTOS3000            this one: rtcore, apps, tools, docs      MIT
+    GEMbedded            this one: rtcore, apps, tools, docs      MIT
       pTOS/             fork of kelihlodversson/pTOS             GPL v2+
       (IRKernel)        linked into rtcore from its own repo     own licence
 
@@ -33,7 +33,7 @@ Nothing has been published.  When it is time:
 
     # 2. this repository
     cd ..
-    git remote add origin git@github.com:<user>/pTOS3000.git
+    git remote add origin git@github.com:<user>/GEMbedded.git
     git push -u origin master
 
     # 3. tie them together
