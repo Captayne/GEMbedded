@@ -58,8 +58,8 @@ bootloader) and copy `ptos+rtcore.uf2` onto the drive that appears.
 
 Programs:
 
-    cd apps/deploy && make                      # DEPLOY.PRG
-    python3 tools/ptosdeploy.py -p COM20 apps/deploy/DEPLOY.PRG
+    cd examples/deploy && make                      # DEPLOY.PRG
+    python3 tools/ptosdeploy.py -p COM20 examples/deploy/DEPLOY.PRG
 
 ## Licence
 
