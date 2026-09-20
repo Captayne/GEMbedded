@@ -322,7 +322,11 @@ int main(void)
     for (;;)
     {
         short msg[8], mx, my, button, kstate, key, clicks;
-        short ev = evnt_multi_button_timer(200, &mx, &my, &button,
+        /* Fifty milliseconds: the cube is computed twenty times a second
+           and the display cannot show more than about twenty frames
+           anyway -- 320x240 at 16 bits is 49 ms of SPI at 25 MHz.  A
+           longer wait here was why it moved in steps. */
+        short ev = evnt_multi_button_timer(50, &mx, &my, &button,
                                            &kstate, &key, &clicks, msg);
 
         if ((ev & MU_MESAG) && msg[0] == IRK_MSG)
