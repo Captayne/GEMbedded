@@ -124,7 +124,7 @@ The AES creates its processes with their UDA and stack already in place.
 | behaviour | unchanged by construction | equal priorities approximate today |
 | status | default | opt-in |
 
-A Kconfig choice under `sched/Kconfig` selects one.  Keeping the AES
+A Kconfig choice under `aes/Kconfig` selects one.  Keeping the AES
 backend as the default is not caution for its own sake: it is the
 reference the IRKernel backend gets measured against, the same way
 running rtcore from SRAM was measured (worst-case lateness 25 us -> 8 us).
@@ -190,9 +190,9 @@ Kconfig (`tools/genconfig.py`, `tools/kconfig.mk`), no CMake:
 
 | Piece | File | Job |
 |---|---|---|
-| detection (1) | `sched/detect.mk` | `IRK_ROOT` from the command line, the environment, an installed SDK, and `../IRKernel` only as a last resort.  Sets `IRK_FOUND` and `IRK_VERSION` and nothing else |
-| validation (2) | `sched/detect.mk` | finds and checks the licence file, sets `IRK_LICENSE_OK`, `IRK_LICENSEE`, `IRK_LICENSE_ID`.  Never reads anything inside a work tree |
-| selection (3) | `sched/Kconfig` + `USE_IRKERNEL=1` | a `choice`: `CONF_SCHED_AES` (default) or `CONF_SCHED_IRKERNEL`, whose help text says plainly what it is; the make variable is the act |
+| detection (1) | `sched.mk` | `IRK_ROOT` from the command line, the environment, an installed SDK, and `../IRKernel` only as a last resort.  Sets `IRK_FOUND` and `IRK_VERSION` and nothing else |
+| validation (2) | `sched.mk` | finds and checks the licence file, sets `IRK_LICENSE_OK`, `IRK_LICENSEE`, `IRK_LICENSE_ID`.  Never reads anything inside a work tree |
+| selection (3) | `aes/Kconfig` + `USE_IRKERNEL=1` | a `choice`: `CONF_SCHED_AES` (default) or `CONF_SCHED_IRKERNEL`, whose help text says plainly what it is; the make variable is the act |
 | gate | `Makefile` | evaluates the three, picks the backend, and on abort names the condition that failed -- never a generic "cannot build" |
 
 Condition 3, the act itself, is a **make variable, not a config symbol**:
@@ -300,7 +300,7 @@ out and what each one costs.
 
 1. **A** -- introduce the seam, implement `sched_aes.c`, change nothing
    observable.  Verifiable: the desktop behaves exactly as before.
-2. **B** -- the gate: `sched/detect.mk`, `sched/Kconfig`, the three states
+2. **B** -- the gate: `sched.mk`, `aes/Kconfig`, the three states
    and the licence manifest.  Verifiable without IRKernel being present at
    all -- the "not installed" and "available" paths are the two that every
    user will see.
