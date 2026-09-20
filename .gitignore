@@ -26,4 +26,5 @@ Hardware/
 # IRKernel licence files: per licensee, never per repository.  They carry a
 # name and a licence id, and a repository is what gets cloned and passed on.
 *.license
+*.lic
 irkernel.license
