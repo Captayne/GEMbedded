@@ -13,3 +13,9 @@ pTOS/
 *.acc
 board-test/build/
 sdcard/
+
+# diagnostics: screenshots, console dumps, logs
+tools/*.png
+tools/*.log
+tools/consolelog.txt
+tools/dump.txt

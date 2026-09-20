@@ -1,55 +1,0 @@
-unit 26 is managed by EmuTOS internal drivers: SDSU04G
-fda:  MBR at 0 $0e $0e
-
-
-
-        [47m           [40m  [47m   [40m   [47m    [40m
-        [40m        [47m [40m   [47m [40m   [47m [40m [47m [40m    
-        [41m    [40m    [47m [40m   [47m [40m   [47m [40m  [47m   [40m 
-        [41m [40m   [41m [40m   [47m [40m   [47m [40m   [47m [40m     [47m [40m
-        [41m    [40m    [47m [40m    [47m   [40m  [47m    [40m 
-        [41m [40m                      
-________________________________________
-
-pTOS Version:       [31m20260919[37m 
-CPU type:           [31mCortex-M33[37m 
-Machine:            [31mWaveshare RP2350-PiZero[37m 
-ST-RAM:             [31m456 KB[37m 
-Real-time core:     [31mIRKernel real-time core[37m 
-GEMDOS drives:      [31m[7mC[27mD[37m 
-Boot time:          [31m[7m2026/09/18 00:00:00[27m[37m 
-________________________________________
-
-Hold <Control> to skip AUTO/ACC
-Hold <Alternate> to skip HDD boot
-Press key 'X' to boot from X:
-Press <Esc> to run an early console
-
-[7m   Hold <Shift> to pause this screen    [27m
-
-VDI video mode = 320x240 1-plane
-
-*** fault, vector 00000010
-pc=00000000 lr=20013730 sp=2000d698 xpsr=2000db28
-fsr=00040000 far=e000ed34
-r0=00000000 r1=fffffff9 r2=00000000 r3=fffffff9
-r4=2000defc r5=2000df14 r6=2000df0c r7=2000d81c
-r8=2000f3f0 r9=200131dc r10=2000df14 r11=00000001
-r12=00000073
-[7h
-
-
-*** fault while handling a fault, vector 00000008
-pc=10006782 lr=100068b7 sp=2000d5c0 xpsr=01000006
-fsr=00040000 far=e000ed34
-r0=00000020 r1=00000001 r2=12345678 r3=e0000000
-r4=100008fc r5=2000d5ec r6=20000384 r7=200003c4
-r8=00000000 r9=200131dc r10=2000df14 r11=00000001
-r12=00000001
-
-[mon] pc=1000960e lr=10006def xpsr=41000003
-[touch] raw x=0000033a y=0000023d mouse x=00000018 y=00000023
-
-[mon] pc=10009616 lr=10006def xpsr=41000003
-[touch] raw x=0000033a y=0000023d mouse x=00000018 y=00000023
-
