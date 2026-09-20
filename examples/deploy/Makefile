@@ -6,7 +6,7 @@
 
 PTOS     ?= ../../pTOS
 LIBCMINI  = $(PTOS)/obj/libcmini-build
-LIB       = ../lib
+LIB       = ../../apps/lib
 
 CC       = arm-none-eabi-gcc
 CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=soft
