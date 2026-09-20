@@ -562,6 +562,19 @@ static long rt_queue_recv(irk_handle h, void *item)
     return irk_queue_recv(q, item);
 }
 
+static long rt_notify(unsigned long a, unsigned long b)
+{
+    /* Coalesce: the newest values win, and the count of notifications
+       never exceeds the one slot.  The system core clears note last, so
+       it never sees half of a newer pair. */
+    mailbox->note_task = rt_task_self();
+    mailbox->note_a = a;
+    mailbox->note_b = b;
+    __asm__ volatile ("dmb" ::: "memory");
+    mailbox->note = 1;
+    return 0;
+}
+
 static struct irk_api *rt_rt_api(void);
 
 static const struct irk_api rt_irk_api = {
@@ -599,7 +612,8 @@ static const struct irk_api rt_irk_api = {
     rt_queue_try_recv,
     rt_queue_count,
 
-    NULL,                       /* notify: still to come */
+    rt_notify,
+    NULL,                       /* notify_to: the GEM half says that */
 
     rt_stack_free,
     rt_runtime_us,
