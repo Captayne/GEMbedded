@@ -22,3 +22,8 @@ tools/dump.txt
 
 # vendor photos and drawings (Waveshare and shops): not ours to redistribute
 Hardware/
+
+# IRKernel licence files: per licensee, never per repository.  They carry a
+# name and a licence id, and a repository is what gets cloned and passed on.
+*.license
+irkernel.license

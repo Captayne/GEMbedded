@@ -133,38 +133,80 @@ running rtcore from SRAM was measured (worst-case lateness 25 us -> 8 us).
 ## Product boundary
 
 IRKernel is not part of GEMbedded.  Cloning this repository and running
-`make` never produces it, and no build ever fetches it.  The build knows
-three states, and only the last one is a decision:
+`make` never produces it, and no build ever fetches it.
 
-| State | How it arises | What the build does |
-|---|---|---|
-| **not installed** | nothing found | builds `sched_aes`, says nothing |
-| **available** | detection found it | builds `sched_aes` and reports once: detected, remains disabled, separately licensed |
-| **enabled** | user selects it *and* names a licence file | builds `sched_irk`, stamps the licence id into the image |
+Three conditions have to hold before the IRKernel path is built, and they
+are **independent of each other on purpose** -- each one can be true while
+the others are false:
+
+| # | Condition | Established by | Who does it |
+|---|---|---|---|
+| 1 | IRKernel is installed | detection | anyone, automatically |
+| 2 | a valid licence file is present | validation | the licensee, once |
+| 3 | IRKernel is explicitly enabled | `CONF_SCHED_IRKERNEL` plus `USE_IRKERNEL=1` on the command line | the user, per build |
+
+Any combination short of all three builds `sched_aes`.  The difference is
+only whether the build says something, and it always says **which** of the
+three is missing -- that is the point of keeping them apart:
+
+| 1 installed | 2 licensed | 3 enabled | Result |
+|---|---|---|---|
+| no | -- | no | `sched_aes`, silently |
+| yes | -- | no | `sched_aes`, plus a one-line note: detected, not enabled, separately licensed |
+| no | -- | yes | **abort**: IRKernel was requested but is not installed; where to obtain it |
+| yes | no | yes | **abort**: IRKernel found, but no valid licence; how to get one |
+| yes | yes | yes | `sched_irk`, licence id stamped into the image |
 
 Detection is automatic; enabling never is.  A directory lying next to ours
-is not consent.
+is not consent, and neither is a licence file: condition 2 says somebody
+*may* use it, condition 3 says somebody *chose* to.
 
 Where this lives in the build system we actually have -- make plus
 Kconfig (`tools/genconfig.py`, `tools/kconfig.mk`), no CMake:
 
 | Piece | File | Job |
 |---|---|---|
-| detection | `sched/detect.mk` | `IRK_ROOT` from the command line, the environment, an installed SDK, and `../IRKernel` only as a last resort.  Sets `IRK_FOUND` and `IRK_VERSION` and nothing else |
-| selection | `sched/Kconfig` | a `choice`: `CONF_SCHED_AES` (default) or `CONF_SCHED_IRKERNEL`, whose help text says plainly what it is |
-| gate | `Makefile` | selected but missing -> abort, with where to obtain it.  Found but not selected -> the "available" note.  Both -> configuration block in the build log |
+| detection (1) | `sched/detect.mk` | `IRK_ROOT` from the command line, the environment, an installed SDK, and `../IRKernel` only as a last resort.  Sets `IRK_FOUND` and `IRK_VERSION` and nothing else |
+| validation (2) | `sched/detect.mk` | finds and checks the licence file, sets `IRK_LICENSE_OK`, `IRK_LICENSEE`, `IRK_LICENSE_ID`.  Never reads anything inside a work tree |
+| selection (3) | `sched/Kconfig` + `USE_IRKERNEL=1` | a `choice`: `CONF_SCHED_AES` (default) or `CONF_SCHED_IRKERNEL`, whose help text says plainly what it is; the make variable is the act |
+| gate | `Makefile` | evaluates the three, picks the backend, and on abort names the condition that failed -- never a generic "cannot build" |
 
-Consent is a **make variable, not a config symbol**:
+Condition 3, the act itself, is a **make variable, not a config symbol**:
 
-    make ... IRKERNEL_LICENSE=/path/to/irkernel.license
+    make ... USE_IRKERNEL=1
 
-That file is the act and the identity at once: licensee and licence id
-come from it and go into the firmware manifest, next to the pTOS version
-and the ABI version.  Keeping it out of `.config` is deliberate.  Consent
-stored in a configuration file is consent nobody remembers giving, and it
-would travel with the directory to whoever gets it next.  For everyday
-work `local.mk` may set it -- that file is untracked and has to be created
-on purpose.
+Keeping it out of `.config` is deliberate.  Consent stored in a
+configuration file is consent nobody remembers giving, and it would travel
+with the directory to whoever gets it next.  For everyday work `local.mk`
+may set it -- that file is untracked and has to be created on purpose.
+
+
+### The licence file
+
+It belongs in **no repository**: not in GEMbedded, not in IRKernel.  It is
+per licensee, not per project, and a repository is exactly the thing that
+gets cloned and passed on.
+
+Search order, none of it inside a work tree:
+
+1. `IRKERNEL_LICENSE=<path>` on the make command line
+2. the `IRKERNEL_LICENSE` environment variable
+3. `$XDG_CONFIG_HOME/irkernel/license`, else `~/.irkernel/license`
+
+`detect.mk` **refuses a path that resolves inside either work tree** and
+says why.  That is not pedantry: a licence file inside the tree is one
+`git add -A` away from being published, and it carries a name and a
+licence id.  Both repositories also carry `.gitignore` entries for
+`*.license` as a second net.
+
+"Valid" means well-formed and applicable: licensee, product, permitted
+use, licence id, the ABI version it was issued for.  A signature (public
+key in the GPL adapter, private key with the vendor) makes the file
+checkable rather than merely readable -- but its worth is **evidentiary,
+not enforcing**.  The adapter is GPL, so anyone can read and change the
+check.  What actually stops unlicensed use is that IRKernel is not
+downloadable anywhere; the manifest records who agreed to what, which is
+what a licence gate is for.
 
 `__has_include` appears in the adapter only as a safety net: `#error` when
 the configuration is active but the kernel is missing.  Never to switch
