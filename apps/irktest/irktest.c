@@ -63,6 +63,31 @@ static short aes(short op, short nintin, short nintout, short naddrin)
 static short appl_init(void)   { return aes(10, 0, 1, 0); }
 static short appl_exit(void)   { return aes(19, 0, 1, 0); }
 
+static short g_apid = -1;       /* this program, as the AES knows it */
+
+/*
+ * Wait for a touch, a key, or the time to run out -- whichever comes
+ * first.  A program on this machine must never end by waiting for a key
+ * alone: there is not always a keyboard, and then nothing but the reset
+ * button gets you out.
+ */
+static void wait_for_a_sign(unsigned long ms)
+{
+    short msg[8];
+    int   i;
+
+    int_in[0] = 0x0001 | 0x0002 | 0x0020;   /* keyboard, button, timer */
+    int_in[1] = 1;                          /* one click */
+    int_in[2] = 1;                          /* the left button */
+    int_in[3] = 1;                          /* pressed */
+    for (i = 4; i < 14; i++)
+        int_in[i] = 0;
+    int_in[14] = (short)(ms & 0xffff);
+    int_in[15] = (short)(ms >> 16);
+    addr_in[0] = (long)msg;
+    aes(25, 16, 7, 1);
+}
+
 /* evnt_multi, asked only for messages and a timeout */
 static short evnt_mesag_timer(unsigned long ms, short *msg)
 {
@@ -333,7 +358,12 @@ static void stage_queue(void)
        blocks over there without holding up anything over here. */
     for (i = 0; i < 100 && got < 20; i++)
     {
-        while (k->queue_try_recv(queue, &s) == IRK_OK)
+        int n;
+
+        /* Bounded on purpose.  The sender refills as fast as this
+           empties, so an unbounded drain never returns to the condition
+           above -- it is the consumer's job to come up for air. */
+        for (n = 0; n < 8 && k->queue_try_recv(queue, &s) == IRK_OK; n++)
         {
             if (got < 3)
                 printf("  item %lu at %lu us\r\n", s.n, s.us);
@@ -347,8 +377,11 @@ static void stage_queue(void)
     stop = 1;
     for (i = 0; i < 50 && !ended; i++)
     {
-        while (k->queue_try_recv(queue, &s) == IRK_OK)
-            ;                   /* keep it moving so the sender can end */
+        int n;
+
+        /* Keep it moving so the sender can notice that it should end. */
+        for (n = 0; n < 8 && k->queue_try_recv(queue, &s) == IRK_OK; n++)
+            ;
         wait_ms(10);
     }
     ok("the sender ended", ended != 0);
@@ -362,20 +395,19 @@ static void stage_queue(void)
 static void stage_notify(void)
 {
     irk_handle t;
-    short  apid, msg[8], ev;
+    short  msg[8], ev;
     long   got = 0;
     unsigned long last = 0, sent;
     int    i;
 
     stage("A headless task reaches the user interface");
 
-    apid = appl_init();
-    ok("this program is known to the AES", apid >= 0);
-    if (apid < 0)
+    ok("this program is known to the AES", g_apid >= 0);
+    if (g_apid < 0)
         return;
 
     ok("the kernel was told where to deliver",
-       k->notify_to((unsigned short)apid) == IRK_OK);
+       k->notify_to((unsigned short)g_apid) == IRK_OK);
 
     ticks = 0;
     stop = 0;
@@ -384,10 +416,7 @@ static void stage_notify(void)
     t = k->task_new(IRK_CORE_RT, reporter, 0, 100, 0, 1024, 0);
     ok("the reporting task was created", t != IRK_NONE);
     if (t == IRK_NONE)
-    {
-        appl_exit();
         return;
-    }
     ok("the reporter starts when told", k->task_resume(t) == IRK_OK);
 
     /* Collect for about a second.  evnt_multi returns on a message or
@@ -428,7 +457,6 @@ static void stage_notify(void)
     ok("the reporter ended", ended != 0);
 
     k->task_kill(t);
-    appl_exit();
 }
 
 
@@ -446,6 +474,7 @@ int main(void)
         return 1;
     }
     k = (struct irk_api *)value;
+    g_apid = appl_init();
 
     stage_interface();
     if (!failures)
@@ -458,7 +487,17 @@ int main(void)
     }
 
     printf("\r\n%s\r\n", failures ? "FAILURES ABOVE" : "all stages passed");
-    printf("Press a key.\r\n");
-    Cconin();
+
+    if (g_apid >= 0)
+    {
+        printf("Touch the screen or press a key. Ends by itself in 30 s.\r\n");
+        wait_for_a_sign(30000);
+        appl_exit();
+    }
+    else
+    {
+        printf("Press a key.\r\n");
+        Cconin();
+    }
     return failures ? 1 : 0;
 }
