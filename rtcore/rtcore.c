@@ -445,6 +445,174 @@ static long cmd_queue_op(unsigned long h, unsigned long op, void *item)
 }
 
 
+/*========================================================================*\
+ *  The same interface, as it exists on this core
+ *
+ *  What a headless task calls.  No mailbox: it is already here, and the
+ *  mailbox is what this core serves.  Nothing is missing either --
+ *  waiting is exactly what a task over here is allowed to do.
+\*========================================================================*/
+
+static unsigned short rt_core(void)
+{
+    /* As far as this kernel knows it is alone, so ask it nothing: from
+       the program's side this is the real-time core, by definition. */
+    return IRK_CORE_RT;
+}
+
+static unsigned short rt_cores(void)
+{
+    return 2;
+}
+
+static irk_handle rt_task_new(unsigned short core, irk_entry fn, void *arg,
+                              unsigned short prio,
+                              void *stack, unsigned long size,
+                              const char *name)
+{
+    long rc;
+
+    (void)stack;
+    (void)name;
+    if (core != IRK_CORE_RT)
+        return IRK_NONE;
+    rc = cmd_task_new(fn, arg, prio, size);
+    return (rc > 0) ? (irk_handle)rc : IRK_NONE;
+}
+
+static long rt_task_kill(irk_handle t)     { return cmd_task_kill(t); }
+static long rt_task_suspend(irk_handle t)  { return cmd_task_ctl(t, RTX_CTL_SUSPEND, 0); }
+static long rt_task_resume(irk_handle t)   { return cmd_task_ctl(t, RTX_CTL_RESUME, 0); }
+static long rt_set_prio(irk_handle t, unsigned short p)
+                                           { return cmd_task_ctl(t, RTX_CTL_SET_PRIO, p); }
+static long rt_get_prio(irk_handle t)      { return cmd_task_ctl(t, RTX_CTL_GET_PRIO, 0); }
+static long rt_set_normal(irk_handle t, unsigned short p)
+                                           { return cmd_task_ctl(t, RTX_CTL_NORMAL, p); }
+static long rt_set_cyclic(irk_handle t, unsigned long period_us,
+                          unsigned long start_after_us)
+                                           { return cmd_task_cyclic(t, period_us, start_after_us); }
+static long rt_stack_free(irk_handle t)    { return cmd_task_ctl(t, RTX_CTL_STACK, 0); }
+static unsigned long rt_runtime_us(irk_handle t)
+{
+    long rc = cmd_task_ctl(t, RTX_CTL_RUNTIME, 0);
+    return (rc < 0) ? 0UL : (unsigned long)rc;
+}
+
+static irk_handle rt_task_self(void)
+{
+    irk_task_t me = irk_task_self();
+    int i;
+
+    for (i = 0; i < MAX_RT; i++)
+        if (slots[i].used && slots[i].task == me)
+            return H_MAKE(H_TASK, (unsigned)i);
+    return IRK_NONE;
+}
+
+static void rt_yield(void)                 { irk_yield(); }
+static void rt_delay_us(unsigned long us)  { irk_delay_us(us); }
+static unsigned long rt_now_us(void)       { return (unsigned long)irk_now_us(); }
+
+static irk_handle rt_sema_new(long count)
+{
+    long rc = cmd_sema_new(count);
+    return (rc > 0) ? (irk_handle)rc : IRK_NONE;
+}
+static long rt_sema_free(irk_handle s)     { return cmd_sema_free(s); }
+static long rt_sema_try(irk_handle s)      { return cmd_sema_op(s, RTX_SEM_TRY); }
+static long rt_sema_signal(irk_handle s)   { return cmd_sema_op(s, RTX_SEM_SIGNAL); }
+
+static long rt_sema_wait(irk_handle h)
+{
+    irk_sema_t s;
+
+    if (sema_of(h, &s) != 0)
+        return RTX_E_BADARG;
+    return irk_sema_wait(s);
+}
+
+static irk_handle rt_queue_new(void *storage, unsigned short items,
+                               unsigned short itemsize)
+{
+    long rc = cmd_queue_new(storage, items, itemsize);
+    return (rc > 0) ? (irk_handle)rc : IRK_NONE;
+}
+static long rt_queue_free(irk_handle q)    { return cmd_queue_free(q); }
+static long rt_queue_try_send(irk_handle q, const void *i)
+                                           { return cmd_queue_op(q, RTX_Q_TRY_SEND, (void *)i); }
+static long rt_queue_try_recv(irk_handle q, void *i)
+                                           { return cmd_queue_op(q, RTX_Q_TRY_RECV, i); }
+static long rt_queue_count(irk_handle q)   { return cmd_queue_op(q, RTX_Q_COUNT, NULL); }
+
+static long rt_queue_send(irk_handle h, const void *item)
+{
+    irk_queue_t *q;
+
+    if (queue_of(h, &q) != 0)
+        return RTX_E_BADARG;
+    return irk_queue_send(q, item);
+}
+
+static long rt_queue_recv(irk_handle h, void *item)
+{
+    irk_queue_t *q;
+
+    if (queue_of(h, &q) != 0)
+        return RTX_E_BADARG;
+    return irk_queue_recv(q, item);
+}
+
+static struct irk_api *rt_rt_api(void);
+
+static const struct irk_api rt_irk_api = {
+    IRK_API_VERSION,
+    sizeof(struct irk_api),
+
+    rt_core,
+    rt_cores,
+
+    rt_task_new,
+    rt_task_kill,
+    rt_task_suspend,
+    rt_task_resume,
+    rt_task_self,
+    rt_set_prio,
+    rt_get_prio,
+    rt_set_cyclic,
+    rt_set_normal,
+
+    rt_yield,
+    rt_delay_us,
+    rt_now_us,
+
+    rt_sema_new,
+    rt_sema_free,
+    rt_sema_wait,
+    rt_sema_try,
+    rt_sema_signal,
+
+    rt_queue_new,
+    rt_queue_free,
+    rt_queue_send,
+    rt_queue_recv,
+    rt_queue_try_send,
+    rt_queue_try_recv,
+    rt_queue_count,
+
+    NULL,                       /* notify: still to come */
+
+    rt_stack_free,
+    rt_runtime_us,
+
+    rt_rt_api
+};
+
+static struct irk_api *rt_rt_api(void)
+{
+    return (struct irk_api *)&rt_irk_api;
+}
+
+
 static long cmd_status(void)
 {
     int i, n = 0;
@@ -532,6 +700,7 @@ int main(void)
     irk_init(1);
 
     mailbox->version = RTCORE_VERSION;
+    mailbox->api = (unsigned long)&rt_irk_api;
     mailbox->seq = 0;
     mailbox->done = 0;
     __asm__ volatile ("dmb" ::: "memory");
