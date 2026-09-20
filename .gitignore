@@ -7,5 +7,9 @@ pTOS/
 *.uf2
 *.TOS
 *.tos
+*.PRG
+*.prg
+*.ACC
+*.acc
 board-test/build/
 sdcard/
