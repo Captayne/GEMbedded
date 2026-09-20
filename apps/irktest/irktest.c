@@ -249,13 +249,16 @@ static void stage_task(void)
     if (t == IRK_NONE)
         return;
 
+    /* Born suspended, so that whatever it looks at is ready first. */
+    ok("it starts when told", k->task_resume(t) == IRK_OK);
+
     wait_ms(200);
     seen = ticks;
     printf("  counted %lu times in about 200 ms\r\n", seen);
     ok("the other core really ran our code", seen > 20);
     ok("and is not running away", seen < 4000);
 
-    printf("  stack never touched: %ld of 1024 bytes\r\n", k->stack_free(t));
+    printf("  stack never touched: %ld bytes\r\n", k->stack_free(t));
     printf("  processor had: %lu us\r\n", k->runtime_us(t));
 
     stop = 1;
@@ -283,6 +286,7 @@ static void stage_cyclic(void)
         return;
 
     ok("it took a period of 1 ms", k->set_cyclic(t, 1000, 0) == IRK_OK);
+    ok("and starts when told", k->task_resume(t) == IRK_OK);
 
     wait_ms(500);
     seen = ticks;
@@ -323,6 +327,7 @@ static void stage_queue(void)
         k->queue_free(queue);
         return;
     }
+    ok("the sender starts when told", k->task_resume(t) == IRK_OK);
 
     /* It fills the queue and then waits for room.  That is the point: it
        blocks over there without holding up anything over here. */
@@ -383,6 +388,7 @@ static void stage_notify(void)
         appl_exit();
         return;
     }
+    ok("the reporter starts when told", k->task_resume(t) == IRK_OK);
 
     /* Collect for about a second.  evnt_multi returns on a message or
        when the timer runs out, so this waits properly instead of

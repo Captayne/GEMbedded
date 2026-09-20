@@ -200,6 +200,18 @@ static long cmd_stop(long task)
  *  both reaching for semaphore 0 would otherwise be silently joined.
 \*========================================================================*/
 
+/*
+ * IRKernel answers a status with -1 for "no", 0 for "there was nothing to
+ * do" and 1 for "done".  The interface knows only 0 for accepted and
+ * negative for refused, and a caller who asked for a state the task was
+ * already in has no reason to hear about it.  Translated here, where the
+ * two conventions meet, and nowhere else.
+ */
+static long done(int rc)
+{
+    return (rc < 0) ? IRK_ERR : IRK_OK;
+}
+
 static uint32_t    sema_taken;              /* bit per semaphore */
 static irk_queue_t queues[MAX_Q];
 static uint8_t     queue_taken[MAX_Q];
@@ -212,8 +224,16 @@ static void plain_task(void)
     if (!s)
         return;
 
-    if (s->fn)
-        s->fn(s->arg);
+    /* Without a period the body is the whole task: when it returns,
+       the task is done.  With one it is entered again at every due time,
+       which is what asking for a period means. */
+    do {
+        if (s->fn)
+            s->fn(s->arg);
+        if (!s->period_us)
+            break;
+        irk_yield();                /* until the next due time */
+    } while (!s->stop);
 
     s->used = SLOT_FREE;            /* returning deletes the task */
 }
@@ -266,19 +286,25 @@ static long cmd_task_new(irk_entry fn, void *arg, unsigned long prio,
         s->used = SLOT_FREE;
         return RTX_E_NOSLOT;
     }
+
+    /* Suspended, so that the program can finish arranging things before
+       the task looks at them -- and so that a period can be set on a
+       body that would otherwise have run and ended already. */
+    irk_task_suspend(s->task);
     return (long)H_MAKE(H_TASK, (unsigned)i);
 }
 
 static long cmd_task_kill(unsigned long h)
 {
     struct rt_slot *s = task_of(h);
+    int rc;
 
     if (!s)
         return RTX_E_BADARG;
 
-    irk_task_kill(s->task);
+    rc = irk_task_kill(s->task);
     s->used = SLOT_FREE;
-    return 0;
+    return done(rc);
 }
 
 static long cmd_task_ctl(unsigned long h, unsigned long what, unsigned long v)
@@ -290,11 +316,11 @@ static long cmd_task_ctl(unsigned long h, unsigned long what, unsigned long v)
 
     switch (what)
     {
-    case RTX_CTL_SUSPEND:  return irk_task_suspend(s->task);
-    case RTX_CTL_RESUME:   return irk_task_resume(s->task);
-    case RTX_CTL_SET_PRIO: return irk_task_set_prio(s->task, (irk_prio_t)v);
+    case RTX_CTL_SUSPEND:  return done(irk_task_suspend(s->task));
+    case RTX_CTL_RESUME:   return done(irk_task_resume(s->task));
+    case RTX_CTL_SET_PRIO: return done(irk_task_set_prio(s->task, (irk_prio_t)v));
     case RTX_CTL_GET_PRIO: return (long)irk_task_get_prio(s->task);
-    case RTX_CTL_NORMAL:   return irk_task_set_normal(s->task, (irk_prio_t)v);
+    case RTX_CTL_NORMAL:   return done(irk_task_set_normal(s->task, (irk_prio_t)v));
     case RTX_CTL_STACK:    return (long)irk_stack_free(s->task);
     case RTX_CTL_RUNTIME:  return (long)(uint32_t)irk_task_runtime_us(s->task);
     default:               return RTX_E_BADARG;
@@ -312,9 +338,11 @@ static long cmd_task_cyclic(unsigned long h, unsigned long period_us,
     /* A plain task that becomes cyclic keeps its body: it is entered
        again at every due time, which is what a program asking for a
        period expects. */
+    s->period_us = period_us;       /* plain_task() loops on this */
     if (start_after_us)
-        return irk_task_set_cyclic_at_us(s->task, period_us, start_after_us);
-    return irk_task_set_cyclic_us(s->task, period_us);
+        return done(irk_task_set_cyclic_at_us(s->task, period_us,
+                                              start_after_us));
+    return done(irk_task_set_cyclic_us(s->task, period_us));
 }
 
 static long cmd_sema_new(long count)
@@ -373,8 +401,11 @@ static long cmd_sema_op(unsigned long h, unsigned long op)
 
     switch (op)
     {
-    case RTX_SEM_SIGNAL: return irk_sema_signal(s);
-    case RTX_SEM_TRY:    return irk_sema_try_wait(s);
+    case RTX_SEM_SIGNAL: return done(irk_sema_signal(s));
+    /* IRKernel answers 1 for "taken" and 0 for "was not free"; the
+       interface answers 0 for success and negative for no.  Translate
+       here rather than leave two conventions in the same call chain. */
+    case RTX_SEM_TRY:    return irk_sema_try_wait(s) ? 0L : -1L;
     case RTX_SEM_COUNT:  return (long)irk_sema_count(s);
     default:             return RTX_E_BADARG;
     }
@@ -437,8 +468,11 @@ static long cmd_queue_op(unsigned long h, unsigned long op, void *item)
 
     switch (op)
     {
-    case RTX_Q_TRY_SEND: return item ? irk_queue_try_send(q, item) : RTX_E_BADARG;
-    case RTX_Q_TRY_RECV: return item ? irk_queue_try_recv(q, item) : RTX_E_BADARG;
+    /* Same translation as for a semaphore: 1 means it happened. */
+    case RTX_Q_TRY_SEND: if (!item) return RTX_E_BADARG;
+                         return irk_queue_try_send(q, item) ? 0L : -1L;
+    case RTX_Q_TRY_RECV: if (!item) return RTX_E_BADARG;
+                         return irk_queue_try_recv(q, item) ? 0L : -1L;
     case RTX_Q_COUNT:    return (long)irk_queue_count(q);
     default:             return RTX_E_BADARG;
     }
@@ -528,7 +562,7 @@ static long rt_sema_wait(irk_handle h)
 
     if (sema_of(h, &s) != 0)
         return RTX_E_BADARG;
-    return irk_sema_wait(s);
+    return done(irk_sema_wait(s));
 }
 
 static irk_handle rt_queue_new(void *storage, unsigned short items,
@@ -550,7 +584,7 @@ static long rt_queue_send(irk_handle h, const void *item)
 
     if (queue_of(h, &q) != 0)
         return RTX_E_BADARG;
-    return irk_queue_send(q, item);
+    return done(irk_queue_send(q, item));
 }
 
 static long rt_queue_recv(irk_handle h, void *item)
@@ -559,7 +593,7 @@ static long rt_queue_recv(irk_handle h, void *item)
 
     if (queue_of(h, &q) != 0)
         return RTX_E_BADARG;
-    return irk_queue_recv(q, item);
+    return done(irk_queue_recv(q, item));
 }
 
 static long rt_notify(unsigned long a, unsigned long b)
