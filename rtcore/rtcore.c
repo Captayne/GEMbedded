@@ -276,6 +276,8 @@ static long cmd_task_new(irk_entry fn, void *arg, unsigned long prio,
     s->arg = arg;
     s->init = NULL;
     s->cyclic = NULL;
+    s->period_us = 0;           /* a slot is reused: nothing of the task
+                                   before it may survive here */
     s->stop = 0;
     s->used = SLOT_PLAIN;
 

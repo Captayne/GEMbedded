@@ -196,6 +196,22 @@ static void reporter(void *arg)
     ended = 1;
 }
 
+/* Two of these run at once, each counting into its own place.  They
+   stay runnable on purpose: only then does the share decide. */
+static volatile unsigned long count_a, count_b;
+
+static void busy(void *arg)
+{
+    volatile unsigned long *c = (volatile unsigned long *)arg;
+
+    while (!stop)
+    {
+        (*c)++;
+        rt->yield();
+    }
+    ended++;
+}
+
 /* A cyclic task is entered again at every due time, so it returns. */
 static void ticker(void *arg)
 {
@@ -325,6 +341,54 @@ static void stage_cyclic(void)
     wait_ms(100);
     ok("and has really stopped", ticks == seen);
 }
+
+static void stage_two(void)
+{
+    irk_handle a, b;
+    unsigned long ca, cb, ratio10;
+    int i;
+
+    stage("Two tasks at once, and the share divides by share");
+
+    stop = 0;
+    ended = 0;
+    count_a = count_b = 0;
+
+    /* Both created before either runs: creation does not start a task,
+       so neither is greedy while the other is still being set up. */
+    a = k->task_new(IRK_CORE_RT, busy, (void *)&count_a, 10, 0, 1024, 0);
+    b = k->task_new(IRK_CORE_RT, busy, (void *)&count_b, 20, 0, 1024, 0);
+    ok("both were created", a != IRK_NONE && b != IRK_NONE);
+    ok("and they are not the same task", a != b);
+    if (a == IRK_NONE || b == IRK_NONE)
+        return;
+
+    ok("the first starts when told", k->task_resume(a) == IRK_OK);
+    ok("the second too", k->task_resume(b) == IRK_OK);
+
+    /* Nothing is asked of the runtime while they run: this core only
+       reads memory both cores share. */
+    wait_ms(300);
+
+    ca = count_a;
+    cb = count_b;
+    stop = 1;
+    for (i = 0; i < 50 && ended < 2; i++)
+        wait_ms(10);
+
+    printf("  priority 10: %lu turns, priority 20: %lu turns\r\n", ca, cb);
+    ok("both really ran", ca > 100 && cb > 100);
+
+    ratio10 = ca ? (cb * 10UL) / ca : 0;
+    printf("  ratio %lu.%lu to 1, expected 2.0\r\n", ratio10 / 10, ratio10 % 10);
+    ok("twice the share, twice the turns", ratio10 >= 15 && ratio10 <= 25);
+
+    printf("  tasks that ended: %lu\r\n", ended);
+    ok("both ended, and neither ran on", ended == 2);
+    k->task_kill(a);
+    k->task_kill(b);
+}
+
 
 static void stage_queue(void)
 {
@@ -482,6 +546,7 @@ int main(void)
         stage_sema();
         stage_task();
         stage_cyclic();
+        stage_two();
         stage_queue();
         stage_notify();
     }
