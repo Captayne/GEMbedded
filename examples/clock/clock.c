@@ -26,6 +26,8 @@
 #include <mint/osbind.h>
 #include <mint/mintbind.h>
 #include "gem.h"
+#include <math.h>
+#include "mathglue.h"
 #include "irk.h"
 
 /* ---- the screen ------------------------------------------------- */
@@ -45,28 +47,16 @@
 #define BTN_W        80
 #define BTN_H        26
 
-/* sin(n * 6 degrees) * 1024.  cos is the same table 15 steps on, so one
-   table does for both -- a quarter turn is exactly 15 of these steps. */
-static const short sintab[60] = {
-        0,   107,   213,   316,   416,   512,   602,   685,   761,   828,
-      887,   935,   974,  1002,  1018,  1024,  1018,  1002,   974,   935,
-      887,   828,   761,   685,   602,   512,   416,   316,   213,   107,
-        0,  -107,  -213,  -316,  -416,  -512,  -602,  -685,  -761,  -828,
-     -887,  -935,  -974, -1002, -1018, -1024, -1018, -1002,  -974,  -935,
-     -887,  -828,  -761,  -685,  -602,  -512,  -416,  -316,  -213,  -107
-};
-
-#define SIN(n)  (sintab[(n) % 60])
-#define COS(n)  (sintab[((n) + 15) % 60])
-
-static short vdi;               /* our virtual workstation */
+static short vdi;static short vdi;               /* our virtual workstation */
 
 /* A point on the dial: second `s`, distance `r` from the centre.  The
    screen counts y downwards, so the cosine is subtracted. */
 static void point_at(short s, short r, short *x, short *y)
 {
-    *x = (short)(CX + ((long)r * SIN(s)) / 1024);
-    *y = (short)(CY - ((long)r * COS(s)) / 1024);
+    float a = s * (2.0f * (float)M_PI / 60.0f);
+
+    *x = fround(CX + r * sinf(a));
+    *y = fround(CY - r * cosf(a));
 }
 
 static void line(short x1, short y1, short x2, short y2)
@@ -145,67 +135,20 @@ static void draw_source(const char *text)
 
 /* ---- the cube ---------------------------------------------------- */
 /*
- * Eight corners at (+-20, +-20, +-20), turned about two axes and thrown
- * onto the screen.  Everything in fixed point: the sine table is scaled
- * by 1024, and the products are taken in longs before being shifted
- * back.
+ * Eight corners at (+-20, +-20, +-20), turned about two axes by a
+ * rotation matrix and thrown onto the screen.  In floating point,
+ * because both cores have a unit for it: a lookup table would be the
+ * wrong answer on this machine.  Only the finished coordinates are
+ * rounded, once, to whole pixels.
  *
- * Not because this chip cannot do better -- both Cortex-M33 cores have
- * an FPU -- but because nothing here is built to use it: every Makefile
- * says -mfloat-abi=soft, so a sinf() would be emulated in software and
- * cost far more than a table lookup and two multiplies.  And the AES
- * context switch saves no FPU registers at all, so s16..s31 would not
- * survive a GEM process giving way.  IRKernel is ready for it
- * (IRK_CTX_HAS_FPU, 25 words instead of 9); pTOS is not.  Turning the
- * FPU on is worth doing -- kinematics and control loops are exactly
- * where soft float hurts -- but it is its own piece of work.
- */
+ * Four sines for the whole cube, not four for every corner -- the angles
+ * are the same for all eight. */
 
 #define CUBE_CX     280         /* where it sits: top right */
 #define CUBE_CY      46
 #define CUBE_R       20         /* half an edge */
 #define CUBE_D      160         /* eye distance, for the perspective */
 #define CUBE_BOX     38         /* the square to wipe before redrawing */
-
-/* sin(i * 360/256 degrees) * 1024.  Finer than the dial's table: at
-   twenty frames a second a six degree step would be visibly jerky. */
-static const short sin256[256] = {
-        0,    25,    50,    75,   100,   125,   150,   175,
-      200,   224,   249,   273,   297,   321,   345,   369,
-      392,   415,   438,   460,   483,   505,   526,   548,
-      569,   590,   610,   630,   650,   669,   688,   706,
-      724,   742,   759,   775,   792,   807,   822,   837,
-      851,   865,   878,   891,   903,   915,   926,   936,
-      946,   955,   964,   972,   980,   987,   993,   999,
-     1004,  1009,  1013,  1016,  1019,  1021,  1023,  1024,
-     1024,  1024,  1023,  1021,  1019,  1016,  1013,  1009,
-     1004,   999,   993,   987,   980,   972,   964,   955,
-      946,   936,   926,   915,   903,   891,   878,   865,
-      851,   837,   822,   807,   792,   775,   759,   742,
-      724,   706,   688,   669,   650,   630,   610,   590,
-      569,   548,   526,   505,   483,   460,   438,   415,
-      392,   369,   345,   321,   297,   273,   249,   224,
-      200,   175,   150,   125,   100,    75,    50,    25,
-        0,   -25,   -50,   -75,  -100,  -125,  -150,  -175,
-     -200,  -224,  -249,  -273,  -297,  -321,  -345,  -369,
-     -392,  -415,  -438,  -460,  -483,  -505,  -526,  -548,
-     -569,  -590,  -610,  -630,  -650,  -669,  -688,  -706,
-     -724,  -742,  -759,  -775,  -792,  -807,  -822,  -837,
-     -851,  -865,  -878,  -891,  -903,  -915,  -926,  -936,
-     -946,  -955,  -964,  -972,  -980,  -987,  -993,  -999,
-    -1004, -1009, -1013, -1016, -1019, -1021, -1023, -1024,
-    -1024, -1024, -1023, -1021, -1019, -1016, -1013, -1009,
-    -1004,  -999,  -993,  -987,  -980,  -972,  -964,  -955,
-     -946,  -936,  -926,  -915,  -903,  -891,  -878,  -865,
-     -851,  -837,  -822,  -807,  -792,  -775,  -759,  -742,
-     -724,  -706,  -688,  -669,  -650,  -630,  -610,  -590,
-     -569,  -548,  -526,  -505,  -483,  -460,  -438,  -415,
-     -392,  -369,  -345,  -321,  -297,  -273,  -249,  -224,
-     -200,  -175,  -150,  -125,  -100,   -75,   -50,   -25
-};
-
-#define S(i)    (sin256[(i) & 255])
-#define C(i)    (sin256[((i) + 64) & 255])
 
 static const signed char corner[8][3] = {
     { -1, -1, -1 }, {  1, -1, -1 }, {  1,  1, -1 }, { -1,  1, -1 },
@@ -232,41 +175,43 @@ static volatile unsigned char newest;
 /* Runs on the real-time core, twenty times a second. */
 static void spin(void *arg)
 {
-    static unsigned char ax, ay;
+    static float ax, ay;        /* the two angles, in radians */
     volatile short *px, *py;
-    long x, y, z, y1, z1, x2, z2, d;
-    int  i;
+    float sa, ca, sb, cb;
+    float x, y, z, y1, z1, x2, z2, d;
+    int   i;
 
     (void)arg;
 
     px = frame[1 - newest].x;
     py = frame[1 - newest].y;
 
+    /* Four of these for the whole cube, not four for every corner: the
+       angles do not change between corners. */
+    sa = sinf(ax); ca = cosf(ax);
+    sb = sinf(ay); cb = cosf(ay);
+
     for (i = 0; i < 8; i++)
     {
-        x = corner[i][0] * CUBE_R;
-        y = corner[i][1] * CUBE_R;
-        z = corner[i][2] * CUBE_R;
+        x = corner[i][0] * (float)CUBE_R;
+        y = corner[i][1] * (float)CUBE_R;
+        z = corner[i][2] * (float)CUBE_R;
 
-        /* about x */
-        y1 = (y * C(ax) - z * S(ax)) >> 10;
-        z1 = (y * S(ax) + z * C(ax)) >> 10;
+        y1 = y * ca - z * sa;           /* about x */
+        z1 = y * sa + z * ca;
 
-        /* then about y */
-        x2 = (x * C(ay) + z1 * S(ay)) >> 10;
-        z2 = (z1 * C(ay) - x * S(ay)) >> 10;
+        x2 = x * cb + z1 * sb;          /* then about y */
+        z2 = z1 * cb - x * sb;
 
-        /* and onto the screen, with as much perspective as a cube this
-           small can show */
-        d = CUBE_D + z2;
-        px[i] = (short)(CUBE_CX + (x2 * CUBE_D) / d);
-        py[i] = (short)(CUBE_CY - (y1 * CUBE_D) / d);
+        d = (float)CUBE_D + z2;         /* and onto the screen */
+        px[i] = fround(CUBE_CX + x2 * (float)CUBE_D / d);
+        py[i] = fround(CUBE_CY - y1 * (float)CUBE_D / d);
     }
 
     newest = (unsigned char)(1 - newest);
 
-    ax += 3;                    /* two speeds, so that it tumbles */
-    ay += 2;
+    ax += 0.074f;               /* two speeds, so that it tumbles */
+    ay += 0.049f;
 }
 
 /* Drawn by the GEM half, from whichever frame is newest. */
@@ -377,7 +322,11 @@ int main(void)
     for (;;)
     {
         short msg[8], mx, my, button, kstate, key, clicks;
-        short ev = evnt_multi_button_timer(200, &mx, &my, &button,
+        /* Fifty milliseconds: the cube is computed twenty times a second
+           and the display cannot show more than about twenty frames
+           anyway -- 320x240 at 16 bits is 49 ms of SPI at 25 MHz.  A
+           longer wait here was why it moved in steps. */
+        short ev = evnt_multi_button_timer(50, &mx, &my, &button,
                                            &kstate, &key, &clicks, msg);
 
         if ((ev & MU_MESAG) && msg[0] == IRK_MSG)

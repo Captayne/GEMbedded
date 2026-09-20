@@ -73,6 +73,18 @@ reset:
         str     r0, [r1]
         dsb
         isb
+#if defined(__ARM_FP) && (__ARM_FP > 0)
+        // CPACR belongs to this core alone: what pTOS enabled on core 0
+        // does nothing for us here, and IRKernel saves s16..s31 at every
+        // context switch.  Without this the first switch faults.
+        ldr     r0, =0xe000ed88         // CPACR (core 1's own)
+        ldr     r1, [r0]
+        orr     r1, r1, #(0xF << 20)    // CP10 and CP11, full access
+        str     r1, [r0]
+        dsb
+        isb
+#endif
+
         // main is in SRAM, out of reach of a bl from flash
         ldr     r0, =main
         blx     r0
