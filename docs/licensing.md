@@ -37,6 +37,9 @@ its own.  Worth knowing: inside a GPL system a per-device fee cannot
 really be enforced, because whoever receives the combined work may pass it
 on.  The commercial value stays with IRKernel *outside* GEMbedded.
 
+The scheduler itself, and why an ABI around it does not change this
+answer, is in [scheduler-abi.md](scheduler-abi.md).
+
 **B -- keep IRKernel out of the kernel.**  It stays on core 1 and as a
 library for applications, and the AES keeps its own dispatcher.  Full
 control over the licence, but the scheduler idea is off the table -- that
