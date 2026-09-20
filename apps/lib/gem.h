@@ -82,6 +82,7 @@ short form_dial(short flag, short lx, short ly, short lw, short lh,
                 short bx, short by, short bw, short bh);
 short graf_handle(short *wchar, short *hchar, short *wbox, short *hbox);
 short graf_mouse(short form, const void *mform);
+short graf_mkstate(short *mx, short *my, short *mstate, short *kstate);
 short wind_update(short mode);
 short objc_draw(OBJECT *tree, short start, short depth,
                 short x, short y, short w, short h);

@@ -99,6 +99,23 @@ short graf_handle(short *wchar, short *hchar, short *wbox, short *hbox)
     return h;
 }
 
+/*
+ * Where the pointer is and what is pressed.  On this machine that is how
+ * a program reads the touch screen: a click outside a window belongs to
+ * the screen manager, and taking it over with wind_update(BEG_MCTRL)
+ * hangs here.  Asking works for anyone.
+ */
+short graf_mkstate(short *mx, short *my, short *mstate, short *kstate)
+{
+    short r = aes(79, 0, 5, 0);
+
+    *mx = int_out[1];
+    *my = int_out[2];
+    *mstate = int_out[3];
+    *kstate = int_out[4];
+    return r;
+}
+
 short graf_mouse(short form, const void *mform)
 {
     int_in[0] = form;

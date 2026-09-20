@@ -74,18 +74,27 @@ static short g_apid = -1;       /* this program, as the AES knows it */
 static void wait_for_a_sign(unsigned long ms)
 {
     short msg[8];
+    unsigned long waited;
     int   i;
 
-    int_in[0] = 0x0001 | 0x0002 | 0x0020;   /* keyboard, button, timer */
-    int_in[1] = 1;                          /* one click */
-    int_in[2] = 1;                          /* the left button */
-    int_in[3] = 1;                          /* pressed */
-    for (i = 4; i < 14; i++)
-        int_in[i] = 0;
-    int_in[14] = (short)(ms & 0xffff);
-    int_in[15] = (short)(ms >> 16);
-    addr_in[0] = (long)msg;
-    aes(25, 16, 7, 1);
+    for (waited = 0; waited < ms; waited += 100)
+    {
+        /* Is the screen being touched right now?  graf_mkstate answers
+           that to anyone; the click itself would go to the screen
+           manager, since this program has no window of its own. */
+        aes(79, 0, 5, 0);                   /* graf_mkstate */
+        if (int_out[3] & 1)
+            return;
+
+        int_in[0] = 0x0001 | 0x0020;        /* keyboard or timer */
+        for (i = 1; i < 14; i++)
+            int_in[i] = 0;
+        int_in[14] = 100;                   /* a tenth of a second */
+        int_in[15] = 0;
+        addr_in[0] = (long)msg;
+        if (aes(25, 16, 7, 1) & 0x0001)     /* a key ends it too */
+            return;
+    }
 }
 
 /* evnt_multi, asked only for messages and a timeout */
@@ -555,8 +564,8 @@ int main(void)
 
     if (g_apid >= 0)
     {
-        printf("Touch the screen or press a key. Ends by itself in 30 s.\r\n");
-        wait_for_a_sign(30000);
+        printf("Touch the screen or press a key. Ends by itself in 20 s.\r\n");
+        wait_for_a_sign(20000);
         appl_exit();
     }
     else
