@@ -7,7 +7,7 @@ PTOS     ?= ../pTOS
 IRKERNEL ?= /mnt/d/Develop/_IRF/IRKernel/src
 
 CC       = arm-none-eabi-gcc
-CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=soft
+CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=softfp -mfpu=fpv5-sp-d16
 CFLAGS   = $(CPUFLAGS) -O2 -g -Wall -ffreestanding -fno-builtin \
            -ffunction-sections \
            -DIRK_HAVE_LOCAL_CONFIG -I. -I$(IRKERNEL) -iquote $(PTOS)/include
