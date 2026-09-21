@@ -1,14 +1,19 @@
 /*
- * crt0.S - start-up of the pTOS real-time core runtime (RP2350, core 1)
+ * crt0.S - start-up of the kernel (RP2350)
  *
- * pTOS finds struct rtx_image at the very start of this image
- * (RTX_IMAGE_ADDR) and launches core 1 with the vector table, stack
- * pointer and entry point recorded there.
+ * This image boots.  It sits at the start of flash, where the bootrom
+ * looks for an IMAGE_DEF block, and does two things on core 0:
  *
- * Only the header, a boot vector table and the copy loop below run from
- * flash.  The copy loop moves the rest of the runtime into core 1's SRAM
- * (see rtcore.ld) and continues there, so that nothing core 1 does ever
- * waits for the flash.
+ *   1. copies itself into its share of the SRAM (see rtcore.ld) -- the
+ *      vector table, code, read-only and initialised data -- and clears
+ *      its .bss, so that nothing it does later waits for the flash;
+ *   2. enters pTOS through the vector table at PTOS_IMAGE_ADDR (boot.c).
+ *
+ * Core 1 starts when pTOS calls start_core1() through the kernel's call
+ * table, whose address is in struct rtx_image.
+ *
+ * Only the boot vector table, the IMAGE_DEF block, struct rtx_image and
+ * the copy loop run from flash.
  */
 
 #include "rtx_rp2350.h"
@@ -16,34 +21,50 @@
         .syntax unified
         .thumb
 
-// ==== image header (struct rtx_image) ======================================
+// ==== boot vector table (flash, 0x10000000) ===============================
+// The bootrom takes the initial stack pointer and the reset handler from
+// here.  Nothing else is ever taken: interrupts stay off until pTOS runs.
 
-        .section .rtx_header, "a"
-        .word   RTX_IMAGE_MAGIC
-        .word   1                       // version
-        .word   boot_vectors
-        .word   __stack_top
-        .word   reset + 1               // Thumb
-name:   .ascii  "IRKernel real-time core"
-        .space  44 - (. - name)
-
-// ==== boot vector table (flash), in use until the copy is done ============
-
-        .section .boot, "ax"
-        .balign 512
+        .section .boot_vectors, "a"
 boot_vectors:
-        .word   __stack_top
+        .word   __boot_stack
         .word   reset + 1
         .rept   66
         .word   boot_fault + 1
         .endr
 
+// ==== IMAGE_DEF block ======================================================
+// A single-item block marking this as an ARM Secure executable for the
+// RP2350 (datasheet, "Binary blocks").  Its link offset of 0 makes it a
+// loop of one block.  Must be within the first 4 KB of flash.
+
+        .balign 4
+        .word   0xffffded3              // PICOBIN_BLOCK_MARKER_START
+        .byte   0x42                    // PICOBIN_BLOCK_ITEM_1BS_IMAGE_TYPE
+        .byte   1                       // size in words
+        .hword  0x1021                  // EXE | Secure | ARM | RP2350
+        .byte   0xff                    // PICOBIN_BLOCK_ITEM_2BS_LAST
+        .hword  1                       // size of the items above, in words
+        .byte   0
+        .word   0                       // link to the next block: itself
+        .word   0xab123579              // PICOBIN_BLOCK_MARKER_END
+
+// ==== image header (struct rtx_image, at RTX_IMAGE_ADDR) ==================
+
+        .section .rtx_header, "a"
+        .word   RTX_IMAGE_MAGIC
+        .word   2                       // version
+name:   .ascii  "IRKernel"
+        .space  44 - (. - name)
+        .word   kernel_api
+
+// ==== reset (flash, core 0) ================================================
+
+        .section .boot, "ax"
         .balign 4
         .type   boot_fault, %function
 boot_fault:
         b       boot_fault
-
-// ==== reset (flash): copy the runtime into SRAM and start it there ========
 
         .balign 4
         .globl  reset
@@ -59,7 +80,7 @@ reset:
         str     r3, [r0], #4
         b       1b
 2:
-        // clear .bss (the mailbox below it belongs to pTOS as well)
+        // clear .bss (the mailbox below it is filled in by core 1)
         ldr     r0, =__bss_start
         ldr     r1, =__bss_end
         mov     r2, #0
@@ -68,13 +89,25 @@ reset:
         str     r2, [r0], #4
         b       3b
 4:
-        ldr     r0, =vectors
-        ldr     r1, =0xe000ed08         // VTOR (core 1's own)
-        str     r0, [r1]
-        dsb
-        isb
+        // boot.c is in SRAM, out of reach of a bl from flash; it enters
+        // pTOS and never returns
+        ldr     r0, =boot_core0
+        blx     r0
+5:      b       5b
+        .ltorg
+
+// ==== core 1 (SRAM) ========================================================
+// The bootrom has set VTOR and the stack pointer and jumped here.
+
+        .text
+        .balign 4
+        .globl  core1_entry
+        .type   core1_entry, %function
+core1_entry:
+        mov     r0, #0                  // no stack limit left over from
+        msr     msplim, r0              // the bootrom
 #if defined(__ARM_FP) && (__ARM_FP > 0)
-        // CPACR belongs to this core alone: what pTOS enabled on core 0
+        // CPACR belongs to this core alone: what pTOS enables on core 0
         // does nothing for us here, and IRKernel saves s16..s31 at every
         // context switch.  Without this the first switch faults.
         ldr     r0, =0xe000ed88         // CPACR (core 1's own)
@@ -84,11 +117,8 @@ reset:
         dsb
         isb
 #endif
-
-        // main is in SRAM, out of reach of a bl from flash
-        ldr     r0, =main
-        blx     r0
-5:      b       5b
+        bl      main
+6:      b       6b
         .ltorg
 
 // ==== vector table (SRAM) ==================================================
@@ -96,13 +126,11 @@ reset:
 
         .section .vectors, "a"
         .balign 512
+        .globl  vectors
 vectors:
         .word   __stack_top
-        .word   reset + 1
-        .rept   14
-        .word   fault + 1
-        .endr
-        .rept   52
+        .word   core1_entry + 1
+        .rept   66
         .word   fault + 1
         .endr
 
@@ -131,5 +159,14 @@ fault:
         ldr     r2, =0xe000ed28
         ldr     r2, [r2]
         str     r2, [r1, #76]           // fault[3]: CFSR
-6:      wfi
-        b       6b
+7:      wfi
+        b       7b
+        .ltorg
+
+// ==== core 0's stack while it boots ========================================
+// Used by boot_core0() only; pTOS sets its own before it does anything.
+
+        .bss
+        .balign 8
+        .space  512
+__boot_stack:

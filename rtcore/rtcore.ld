@@ -1,8 +1,8 @@
 /*
  * rtcore.ld - linker script of the pTOS real-time core runtime
  *
- * The image is stored in flash from RTX_IMAGE_ADDR, but only its header
- * and a start-up stub run from there: everything else -- vector table,
+ * The image is stored at the start of flash, where the bootrom finds it,
+ * but only its boot vectors, header and a start-up stub run from there: everything else -- vector table,
  * code, read-only and initialised data -- is copied into core 1's share of
  * the SRAM at start-up and runs from there.  Core 1 then does not depend
  * on the flash at all: flash being written (which stops execution from
@@ -15,7 +15,7 @@
 
 MEMORY
 {
-    flash : ORIGIN = 0x10800000, LENGTH = 1M
+    flash : ORIGIN = 0x10000000, LENGTH = 64K     /* pTOS follows */
     ram   : ORIGIN = 0x20072200, LENGTH = 0x20080000 - 0x20072200
 }
 
@@ -25,9 +25,13 @@ ENTRY(reset)
 
 SECTIONS
 {
-    /* runs from flash: header, boot vector table, copy loop */
+    /* runs from flash: the boot vector table and IMAGE_DEF, which the
+       bootrom wants at the very start; the header at RTX_IMAGE_ADDR; the
+       copy loop */
     .boot :
     {
+        KEEP(*(.boot_vectors))
+        . = 0x400;
         KEEP(*(.rtx_header))
         KEEP(*(.boot))
     } > flash

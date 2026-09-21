@@ -747,6 +747,7 @@ static void do_command(void)
 
 int main(void)
 {
+
     irk_init(1);
 
     mailbox->version = RTCORE_VERSION;

@@ -1,6 +1,6 @@
 # Makefile - pTOS real-time core runtime (RP2350, core 1) with IRKernel
 #
-# Builds rtcore.elf (linked at 0x10800000) and, together with the pTOS
+# Builds rtcore.elf (at the start of flash: it boots and enters pTOS) and, together with the pTOS
 # image, one UF2 file carrying both:  make  ->  ptos+rtcore.uf2
 
 PTOS     ?= ../pTOS
@@ -14,7 +14,7 @@ CFLAGS   = $(CPUFLAGS) -O2 -g -Wall -ffreestanding -fno-builtin \
 LDFLAGS  = $(CPUFLAGS) -nostartfiles -nostdlib -Wl,-T,rtcore.ld \
            -Wl,--gc-sections -Wl,-Map=rtcore.map
 
-OBJ = crt0.o rtcore.o irk_port_rp2350.o IRKernel.o irk_port_cortexm.o
+OBJ = crt0.o boot.o rtcore.o irk_port_rp2350.o IRKernel.o irk_port_cortexm.o
 
 all: ptos+rtcore.uf2
 
