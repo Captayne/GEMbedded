@@ -28,3 +28,9 @@ Hardware/
 *.license
 *.lic
 irkernel.license
+
+# camera roll dropped into the tree, and local copies of what is
+# already versioned
+WhatsApp*
+*.jpeg
+ffmpeg2pass-*

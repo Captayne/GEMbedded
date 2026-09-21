@@ -8,6 +8,8 @@ descendant of EmuTOS, the free Atari TOS — on an RP2350 board, with a
 display, touch, files and GEM windows, while one processor core stays free
 for control loops that must be on time.
 
+![The machine: a Waveshare RP2350-PiZero and a 2.8 inch touch display, running the GEM desktop](docs/images/machine.jpg)
+
 A program has two halves:
 
 * the **normal half** runs on the system core: windows, dialogues, files,
