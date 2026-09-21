@@ -1,4 +1,5 @@
-# Makefile - GEMBDCLK.PRG, the two-halved clock in a window
+# Makefile - GEMBDCLK.PRG, the two-halved clock in a window,
+#            and DUALCLK.PRG, the same with two of them
 #
 # Uses the libcmini that the pTOS build produces ("make test-hd" in pTOS
 # builds it once) and the small AES/VDI bindings in apps/lib.
@@ -17,11 +18,18 @@ LDFLAGS  = $(CPUFLAGS) -nostartfiles -nostdlib \
 
 OBJS = gembedclk.o gem.o mathglue.o
 
-all: GEMBDCLK.PRG
+all: GEMBDCLK.PRG DUALCLK.PRG
 
 GEMBDCLK.PRG: $(OBJS)
 	$(CC) $(LDFLAGS) $(LIBCMINI)/objs/minicrt0.o $(OBJS) \
 	    -L$(LIBCMINI) -lcmini -lm -lgcc -o $@
+
+DUALCLK.PRG: dualclk.o gem.o mathglue.o
+	$(CC) $(LDFLAGS) $(LIBCMINI)/objs/minicrt0.o dualclk.o gem.o mathglue.o \
+	    -L$(LIBCMINI) -lcmini -lm -lgcc -o $@
+
+dualclk.o: gembedclk.c $(PTOS)/include/irk.h $(LIB)/gem.h $(LIB)/mathglue.h
+	$(CC) $(CFLAGS) -DNCLOCKS=2 -c $< -o $@
 
 gembedclk.o: gembedclk.c $(PTOS)/include/irk.h $(LIB)/gem.h $(LIB)/mathglue.h
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -33,6 +41,6 @@ mathglue.o: $(LIB)/mathglue.c $(LIB)/mathglue.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o GEMBDCLK.PRG
+	rm -f *.o GEMBDCLK.PRG DUALCLK.PRG
 
 .PHONY: all clean
