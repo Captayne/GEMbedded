@@ -2,12 +2,12 @@
  * boot.c - core 0 enters pTOS; core 1 starts when pTOS asks
  *
  * boot_core0() runs once, from SRAM, on the small boot stack in crt0.S.
- * start_core1() is the first entry of the kernel's call table.
+ * kapi_start_core1() is start_core1 in the kernel's call table (kapi.c).
  */
 
 #include <stdint.h>
-#include "IRKernel.h"
 #include "rtx_rp2350.h"
+#include "kapi.h"
 
 #define SIO_FIFO_ST     (*(volatile uint32_t *)0xd0000050UL)
 #define SIO_FIFO_WR     (*(volatile uint32_t *)0xd0000054UL)
@@ -84,25 +84,11 @@ static int launch_core1(uint32_t vtor, uint32_t sp, uint32_t entry)
  * not yet understood; until the kernel sets up the clocks itself, pTOS
  * says when.
  */
-static long start_core1(void)
+long kapi_start_core1(void)
 {
     return launch_core1((uint32_t)vectors, (uint32_t)__stack_top,
                         (uint32_t)core1_entry | 1u) ? 0 : -1;
 }
-
-/* pTOS becomes core 0's main task, with the share every task has at
-   first.  The timer runs by now: pTOS set it up before calling. */
-static long start_core0(void)
-{
-    return irk_init(1) == 0 ? 0 : -1;
-}
-
-const struct kernel_api kernel_api = {
-    2,
-    sizeof(struct kernel_api),
-    start_core1,
-    start_core0
-};
 
 void boot_core0(void)
 {

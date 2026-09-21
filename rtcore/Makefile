@@ -14,7 +14,7 @@ CFLAGS   = $(CPUFLAGS) -O2 -g -Wall -ffreestanding -fno-builtin \
 LDFLAGS  = $(CPUFLAGS) -nostartfiles -nostdlib -Wl,-T,rtcore.ld \
            -Wl,--gc-sections -Wl,-Map=rtcore.map
 
-OBJ = crt0.o boot.o rtcore.o irk_port_rp2350.o IRKernel.o irk_port_cortexm.o
+OBJ = crt0.o boot.o kapi.o rtcore.o irk_port_rp2350.o IRKernel.o irk_port_cortexm.o
 
 all: ptos+rtcore.uf2
 

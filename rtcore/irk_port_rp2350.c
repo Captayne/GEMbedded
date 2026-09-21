@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include "irk_port.h"
 #include "rtcore.h"
+#include "kapi.h"
 
 /* TIMER0 counts microseconds (pTOS sets up its tick generator).  The
  * raw registers are read without the latch, which core 0 may be using at
@@ -35,13 +36,17 @@ irk_time_t irk_port_micros(void)
     return ((irk_time_t)hi << 32) | lo;
 }
 
-void irk_port_idle(void)
-{
-    /* nothing to sleep on without a timer interrupt: poll */
-}
-
 /* SIO CPUID: 0 on core 0, 1 on core 1 */
 #define SIO_CPUID       (*(volatile uint32_t *)0xd0000000UL)
+
+void irk_port_idle(void)
+{
+    /* Core 0: pTOS collects its input and wakes whoever it is for, then
+       sleeps until the next interrupt.  Core 1 has nothing to sleep on
+       without a timer interrupt: poll. */
+    if (SIO_CPUID == 0)
+        kapi_idle();
+}
 
 uint8_t irk_port_core_id(void)
 {
