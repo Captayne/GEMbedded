@@ -6,6 +6,7 @@
  */
 
 #include <stdint.h>
+#include "IRKernel.h"
 #include "rtx_rp2350.h"
 
 #define SIO_FIFO_ST     (*(volatile uint32_t *)0xd0000050UL)
@@ -89,10 +90,18 @@ static long start_core1(void)
                         (uint32_t)core1_entry | 1u) ? 0 : -1;
 }
 
+/* pTOS becomes core 0's main task, with the share every task has at
+   first.  The timer runs by now: pTOS set it up before calling. */
+static long start_core0(void)
+{
+    return irk_init(1) == 0 ? 0 : -1;
+}
+
 const struct kernel_api kernel_api = {
-    1,
+    2,
     sizeof(struct kernel_api),
-    start_core1
+    start_core1,
+    start_core0
 };
 
 void boot_core0(void)
