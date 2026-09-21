@@ -53,7 +53,7 @@
 #define BTN_W        80
 #define BTN_H        26
 
-static short vdi;static short vdi;               /* our virtual workstation */
+static short vdi;               /* our virtual workstation */
 
 /* A point on the dial: second `s`, distance `r` from the centre.  The
    screen counts y downwards, so the cosine is subtracted. */
