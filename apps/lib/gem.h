@@ -93,6 +93,47 @@ short evnt_multi_button_timer(unsigned long ms, short *mx, short *my,
                               short *button, short *kstate, short *key,
                               short *clicks, short *msg);
 
+/* evnt_multi() for a message or a timeout: returns the MU_ flags */
+short evnt_multi_mesag_timer(unsigned long ms, short *msg);
+
+/* ---- windows ---- */
+
+#define NAME            0x0001          /* window parts */
+#define CLOSER          0x0002
+#define FULLER          0x0004
+#define MOVER           0x0008
+#define SIZER           0x0020
+
+#define WM_REDRAW       20              /* messages */
+#define WM_TOPPED       21
+#define WM_CLOSED       22
+#define WM_FULLED       23
+#define WM_SIZED        27
+#define WM_MOVED        28
+
+#define WF_NAME         2               /* wind_get() / wind_set() */
+#define WF_WORKXYWH     4
+#define WF_CURRXYWH     5
+#define WF_PREVXYWH     6
+#define WF_FULLXYWH     7
+#define WF_TOP          10
+#define WF_FIRSTXYWH    11
+#define WF_NEXTXYWH     12
+
+#define WC_BORDER       0               /* wind_calc() */
+#define WC_WORK         1
+
+short wind_create(short kind, short x, short y, short w, short h);
+short wind_open(short handle, short x, short y, short w, short h);
+short wind_close(short handle);
+short wind_delete(short handle);
+short wind_get(short handle, short field,
+               short *a, short *b, short *c, short *d);
+short wind_set(short handle, short field, short a, short b, short c, short d);
+short wind_set_name(short handle, const char *name);
+short wind_calc(short type, short kind, short x, short y, short w, short h,
+                short *ox, short *oy, short *ow, short *oh);
+
 /* ---- VDI ---- */
 
 #define MD_REPLACE      1

@@ -171,10 +171,117 @@ short evnt_multi_button_timer(unsigned long ms, short *mx, short *my,
     return int_out[0];
 }
 
+short evnt_multi_mesag_timer(unsigned long ms, short *msg)
+{
+    int i;
+
+    for (i = 0; i < 16; i++)
+        int_in[i] = 0;
+    int_in[0] = MU_MESAG | MU_TIMER;
+    int_in[14] = (short)(ms & 0xffff);
+    int_in[15] = (short)(ms >> 16);
+    addr_in[0] = (long)msg;
+    aes(25, 16, 7, 1);
+    return int_out[0];
+}
+
 short wind_update(short mode)
 {
     int_in[0] = mode;
     return aes(107, 1, 1, 0);
+}
+
+/* ---- windows ---- */
+
+static void xywh(short a, short b, short c, short d)
+{
+    int_in[1] = a;
+    int_in[2] = b;
+    int_in[3] = c;
+    int_in[4] = d;
+}
+
+short wind_create(short kind, short x, short y, short w, short h)
+{
+    int_in[0] = kind;
+    xywh(x, y, w, h);
+    return aes(100, 5, 1, 0);
+}
+
+short wind_open(short handle, short x, short y, short w, short h)
+{
+    int_in[0] = handle;
+    xywh(x, y, w, h);
+    return aes(101, 5, 1, 0);
+}
+
+short wind_close(short handle)
+{
+    int_in[0] = handle;
+    return aes(102, 1, 1, 0);
+}
+
+short wind_delete(short handle)
+{
+    int_in[0] = handle;
+    return aes(103, 1, 1, 0);
+}
+
+short wind_get(short handle, short field,
+               short *a, short *b, short *c, short *d)
+{
+    short r;
+
+    int_in[0] = handle;
+    int_in[1] = field;
+    r = aes(104, 2, 5, 0);
+    *a = int_out[1];
+    *b = int_out[2];
+    *c = int_out[3];
+    *d = int_out[4];
+    return r;
+}
+
+short wind_set(short handle, short field, short a, short b, short c, short d)
+{
+    int_in[0] = handle;
+    int_in[1] = field;
+    int_in[2] = a;
+    int_in[3] = b;
+    int_in[4] = c;
+    int_in[5] = d;
+    return aes(105, 6, 1, 0);
+}
+
+/*
+ * The name is kept by address, so it has to stay where it is.  The AES
+ * reads the address straight out of int_in[2..3] as a pointer, in memory
+ * order -- on this little-endian machine the low half comes first, the
+ * other way round from the Atari.
+ */
+short wind_set_name(short handle, const char *name)
+{
+    unsigned long p = (unsigned long)name;
+
+    return wind_set(handle, WF_NAME, (short)(p & 0xffff), (short)(p >> 16),
+                    0, 0);
+}
+
+short wind_calc(short type, short kind, short x, short y, short w, short h,
+                short *ox, short *oy, short *ow, short *oh)
+{
+    int_in[0] = type;
+    int_in[1] = kind;
+    int_in[2] = x;
+    int_in[3] = y;
+    int_in[4] = w;
+    int_in[5] = h;
+    aes(108, 6, 5, 0);
+    *ox = int_out[1];
+    *oy = int_out[2];
+    *ow = int_out[3];
+    *oh = int_out[4];
+    return int_out[0];
 }
 
 /* ---- VDI ---- */
