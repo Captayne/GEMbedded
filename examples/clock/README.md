@@ -1,6 +1,8 @@
 # A clock, in two halves
 
-![The clock running on the machine: a dial with a second hand, a turning wireframe cube, and a Cancel button](clock-running.jpg)
+![The clock running on the machine: a dial with a second hand, a turning wireframe cube, and a Cancel button](ClockPhoto.jpg)
+
+![The cube turning and the second hand moving](ClockRunning.gif)
 
 The dial, the hand and the cube are drawn by an ordinary GEM program on
 the system core.  The seconds and the cube's corners are worked out on

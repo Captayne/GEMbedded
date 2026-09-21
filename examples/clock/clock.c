@@ -32,8 +32,14 @@
 
 /* ---- the screen ------------------------------------------------- */
 
-#define CX          160         /* centre of the dial */
-#define CY          104
+/*
+ * The dial has to clear two things.  Below it the line of text is wiped
+ * from BTN_Y - 22 = 184 downwards, and the rim reached 192.  To its
+ * right the cube wipes from CUBE_CX - CUBE_BOX = 242, and the rim
+ * reached 248.  So: up eight, and left ten.
+ */
+#define CX          150         /* centre of the dial */
+#define CY           94
 #define R_RIM        88         /* the rim */
 #define R_TICK       80         /* where the minute ticks begin */
 #define R_TICK5      72         /* the five-second ones are longer */
