@@ -124,12 +124,15 @@ static void draw_hand(short s, short colour)
     line(CX, CY, x, y);
 }
 
-/* The line below the dial, saying where the seconds come from. */
+/* The line below the dial, saying where the seconds come from.
+   Eight pixels to a character and 320 across: from x=8 that is 39, and
+   the screen wraps a longer line back to the start instead of cutting
+   it off. */
 static void draw_source(const char *text)
 {
     box(0, BTN_Y - 22, 320, 16, WHITE);
     vst_color(vdi, BLACK);
-    v_gtext(vdi, 40, (short)(BTN_Y - 10), text);
+    v_gtext(vdi, 8, (short)(BTN_Y - 10), text);
 }
 
 
@@ -302,7 +305,7 @@ int main(void)
         {
             k->set_cyclic(t, 1000000UL, 0);     /* once a second */
             k->task_resume(t);
-            draw_source("seconds and cube from the real-time core");
+            draw_source("seconds and cube from core 1");
         }
 
         /* The second task: the same core, twenty times the rate.  Two
