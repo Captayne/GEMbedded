@@ -399,6 +399,82 @@ static void stage_two(void)
 }
 
 
+
+/*========================================================================*\
+ *  Does a program keep its floating point registers?
+\*========================================================================*/
+
+/* Fill s16..s31, give way, and look again.  The AES has to carry them
+   across the switch; nothing else does. */
+static int callee_saved_survive(void)
+{
+    float before[16], after[16];
+    short msg[8];
+    int   i, same = 1;
+
+    for (i = 0; i < 16; i++)
+        before[i] = 1000.0f + (float)i;
+
+    __asm__ volatile ("vldmia %0, {s16-s31}" : : "r"(before) : "memory");
+
+    /* A real dispatch: this blocks, so the AES runs somebody else. */
+    int_in[0] = 0x0020;                 /* MU_TIMER */
+    for (i = 1; i < 14; i++)
+        int_in[i] = 0;
+    int_in[14] = 100;
+    int_in[15] = 0;
+    addr_in[0] = (long)msg;
+    aes(25, 16, 7, 1);
+
+    __asm__ volatile ("vstmia %0, {s16-s31}" : : "r"(after) : "memory");
+
+    for (i = 0; i < 16; i++)
+        if (after[i] != before[i])
+            same = 0;
+    return same;
+}
+
+/* Fill s0..s15 and spin long enough for a few hundred interrupts.  The
+   timer runs at 200 Hz, so 100 ms is twenty of them at least. */
+static int caller_saved_survive(void)
+{
+    float before[16], after[16];
+    unsigned long t0;
+    int i, same = 1;
+
+    for (i = 0; i < 16; i++)
+        before[i] = 500.0f + (float)i;
+
+    t0 = k->now_us();
+
+    /* Load, wait and store without letting the compiler in between: it
+       may use these registers itself, and then the test would measure
+       the compiler rather than the system. */
+    __asm__ volatile (
+        "vldmia %0, {s0-s15}\n"
+        "1:\n"
+        "   subs %2, %2, #1\n"
+        "   bne 1b\n"
+        "vstmia %1, {s0-s15}\n"
+        : : "r"(before), "r"(after), "r"(2000000UL)
+        : "memory", "cc");
+
+    (void)t0;
+    for (i = 0; i < 16; i++)
+        if (after[i] != before[i])
+            same = 0;
+    return same;
+}
+
+static void stage_float(void)
+{
+    stage("A program keeps its floating point registers");
+
+    ok("s16..s31 survive a process switch", callee_saved_survive());
+    ok("s0..s15 survive the interrupts of 100 ms", caller_saved_survive());
+}
+
+
 static void stage_queue(void)
 {
     irk_handle t;
@@ -556,6 +632,7 @@ int main(void)
         stage_task();
         stage_cyclic();
         stage_two();
+        stage_float();
         stage_queue();
         stage_notify();
     }
