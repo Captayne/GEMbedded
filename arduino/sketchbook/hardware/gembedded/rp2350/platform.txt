@@ -56,7 +56,12 @@ compiler.S.flags=-c -x assembler-with-cpp {compiler.includes}
 compiler.ar.cmd={compiler.prefix}ar
 compiler.ar.flags=rcs
 compiler.c.elf.cmd={compiler.prefix}gcc
-compiler.c.elf.flags=-nostartfiles -nostdlib -Wl,-q -Wl,-Ttext=0 -Wl,-e_start
+# --target1-abs: the table of global constructors is relocated with
+# R_ARM_TARGET1, which the loader of pTOS does not know; as ABS32 it
+# is the same relocation under a name it does.
+# --wrap=main: global constructors run before the program starts
+# (cores/gem/cxx.cpp); libcmini's start-up does not do it.
+compiler.c.elf.flags=-nostartfiles -nostdlib -Wl,-q -Wl,-Ttext=0 -Wl,-e_start -Wl,--wrap=main -Wl,--target1-abs
 compiler.libraries.ldflags=
 compiler.objcopy.cmd={compiler.prefix}objcopy
 compiler.size.cmd={compiler.prefix}size

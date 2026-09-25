@@ -50,3 +50,39 @@ void __cxa_pure_virtual(void)
 }
 
 }
+
+/*
+ * And the global constructors themselves.
+ *
+ * libcmini's start-up does not run them -- that is part of what makes it
+ * mini -- so the linker is told to send the start-up's call to main()
+ * here instead (-Wl,--wrap=main in platform.txt).  We walk the table the
+ * compiler left in .init_array, then let the program begin.
+ *
+ * The destructors at the end are left out on purpose: see above.
+ */
+extern "C" {
+
+extern void (*__preinit_array_start[])(void);
+extern void (*__preinit_array_end[])(void);
+extern void (*__init_array_start[])(void);
+extern void (*__init_array_end[])(void);
+
+int __real_main(void);
+
+int __wrap_main(void)
+{
+    long i, n;
+
+    n = __preinit_array_end - __preinit_array_start;
+    for (i = 0; i < n; i++)
+        __preinit_array_start[i]();
+
+    n = __init_array_end - __init_array_start;
+    for (i = 0; i < n; i++)
+        __init_array_start[i]();
+
+    return __real_main();
+}
+
+}
