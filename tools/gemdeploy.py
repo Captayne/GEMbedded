@@ -216,7 +216,10 @@ class WindowsPort:
         if not self.k32.SetCommState(self.handle, ctypes.byref(dcb)):
             raise OSError("SetCommState failed (%d)" % ctypes.get_last_error())
 
-        t = TIMEOUTS(0, 0, 200, 0, 5000)    # 0.2 s to read, 5 s to write
+        # 20 s to write: while a dialog is open on the machine -- the
+        # accessory's own, say -- nobody reads, the port fills up and the
+        # write waits.  Once the dialog goes, the transfer carries on.
+        t = TIMEOUTS(0, 0, 200, 0, 20000)
         self.k32.SetCommTimeouts(self.handle, ctypes.byref(t))
         self.flush_input()
 
