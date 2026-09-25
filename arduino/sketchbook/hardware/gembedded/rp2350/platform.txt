@@ -78,9 +78,11 @@ recipe.output.save_file={build.project_name}.PRG
 # gemdeploy sends the program over the USB console; DEPLOY has to be
 # running on the machine.  A resource file next to the sketch goes first,
 # so that the program finds it when it starts.
-tools.gemdeploy.cmd=python3
-tools.gemdeploy.cmd.windows=python
+# "python" on Windows is often the Store placeholder, which does nothing
+# but open the Store, so a small launcher there picks the first
+# interpreter that really answers.  Elsewhere python3 is python3.
 tools.gemdeploy.path={gembedded.tools}
 tools.gemdeploy.upload.params.verbose=
 tools.gemdeploy.upload.params.quiet=
-tools.gemdeploy.upload.pattern={cmd} "{path}/gemdeploy.py" -p {serial.port} "{build.path}/{build.project_name}.PRG"
+tools.gemdeploy.upload.pattern=python3 "{path}/gemdeploy.py" -p {serial.port} "{build.path}/{build.project_name}.PRG"
+tools.gemdeploy.upload.pattern.windows="{path}/gemdeploy.bat" -p {serial.port} "{build.path}/{build.project_name}.PRG"
