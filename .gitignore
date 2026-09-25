@@ -37,3 +37,8 @@ ffmpeg2pass-*
 
 # fetched by tools/get-toolchain.py, not kept in the repository
 arduino/toolchain/
+
+__pycache__/
+*.pyc
+Emulators/
+docs/*.pdf
