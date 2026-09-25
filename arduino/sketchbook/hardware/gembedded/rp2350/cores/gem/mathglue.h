@@ -12,9 +12,20 @@
 #ifndef MATHGLUE_H
 #define MATHGLUE_H
 
+/* A sketch's .ino is compiled as C++, and C++ decorates the names of
+   functions: without this it would look for them in vain. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* To the nearest whole number, not towards zero -- truncating a
    coordinate moves everything half a pixel towards the origin.  libm has
    lroundf(), but this returns the short that the VDI wants. */
 short fround(float v);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MATHGLUE_H */

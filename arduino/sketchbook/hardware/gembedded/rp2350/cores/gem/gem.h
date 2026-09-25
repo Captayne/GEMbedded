@@ -11,6 +11,12 @@
 #ifndef GEM_H
 #define GEM_H
 
+/* A sketch's .ino is compiled as C++, and C++ decorates the names of
+   functions: without this it would look for them in vain. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ---- objects ---- */
 
 typedef struct
@@ -158,5 +164,10 @@ void vst_color(short handle, short color);
 void v_pline(short handle, short count, const short *xy);
 void vr_recfl(short handle, const short *xyxy);
 void v_gtext(short handle, short x, short y, const char *s);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GEM_H */

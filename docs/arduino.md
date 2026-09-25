@@ -40,7 +40,18 @@ location:
 That folder holds the board definition (`hardware/gembedded/rp2350`), the
 GEM bindings and the example sketches. Restart the IDE.
 
-**4. Select the board.** Tools → Board → GEMbedded → *GEMbedded (RP2350,
+**4. Let "New Sketch" start from a GEM program.** The IDE makes up the
+`setup()`/`loop()` skeleton itself, but since 2.0.1 it will take a file of
+yours instead. Press Ctrl+Shift+P, choose *Preferences: Open Settings
+(UI)*, search for `arduino.sketch.inoBlueprint` and enter
+
+    <...>\GEMbeddedrduino\sketchbook\default\default.ino
+
+Restart the IDE. File → New Sketch then starts from a whole GEM program:
+a window that can be moved, sized and closed, drawn through the rectangle
+list. The same thing is under File → Examples → GEM → Window.
+
+**5. Select the board.** Tools → Board → GEMbedded → *GEMbedded (RP2350,
 320x240)*, and Tools → Port → the port of the machine (COM20 on this
 bench; the uploader finds it by itself if you leave it alone).
 
