@@ -34,3 +34,6 @@ irkernel.license
 WhatsApp*
 *.jpeg
 ffmpeg2pass-*
+
+# fetched by tools/get-toolchain.py, not kept in the repository
+arduino/toolchain/

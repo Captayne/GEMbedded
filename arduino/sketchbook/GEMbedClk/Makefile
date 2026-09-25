@@ -4,9 +4,9 @@
 # Uses the libcmini that the pTOS build produces ("make test-hd" in pTOS
 # builds it once) and the small AES/VDI bindings in apps/lib.
 
-PTOS     ?= ../../pTOS
+PTOS     ?= ../../../pTOS
 LIBCMINI  = $(PTOS)/obj/libcmini-build
-LIB       = ../../apps/lib
+LIB       = ../hardware/gembedded/rp2350/cores/gem
 
 CC       = arm-none-eabi-gcc
 CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=softfp -mfpu=fpv5-sp-d16

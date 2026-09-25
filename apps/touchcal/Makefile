@@ -6,7 +6,7 @@
 
 PTOS     ?= ../../pTOS
 LIBCMINI  = $(PTOS)/obj/libcmini-build
-LIB       = ../lib
+LIB       = ../../arduino/sketchbook/hardware/gembedded/rp2350/cores/gem
 
 CC       = arm-none-eabi-gcc
 CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=softfp -mfpu=fpv5-sp-d16
