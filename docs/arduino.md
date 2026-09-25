@@ -45,7 +45,7 @@ GEM bindings and the example sketches. Restart the IDE.
 yours instead. Press Ctrl+Shift+P, choose *Preferences: Open Settings
 (UI)*, search for `arduino.sketch.inoBlueprint` and enter
 
-    <...>\GEMbeddedrduino\sketchbook\default\default.ino
+    <...>\GEMbedded\arduino\sketchbook\default\default.ino
 
 Restart the IDE. File → New Sketch then starts from a whole GEM program:
 a window that can be moved, sized and closed, drawn through the rectangle
