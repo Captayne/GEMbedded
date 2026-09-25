@@ -62,7 +62,7 @@ recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} "{archi
 
 # The program: the C library's start-up first, then the sketch, then what
 # it uses.  pTOS loads ELF files, so the .PRG is the linker's output.
-recipe.c.combine.pattern="{compiler.path}{compiler.c.elf.cmd}" {compiler.cpu} {compiler.c.elf.flags} "{gembedded.lib}/minicrt0.o" {object_files} "{build.path}/{archive_file}" -L"{gembedded.lib}" -lcmini -lm -lgcc -o "{build.path}/{build.project_name}.PRG"
+recipe.c.combine.pattern="{compiler.path}{compiler.c.elf.cmd}" {compiler.cpu} {compiler.c.elf.flags} "{gembedded.lib}/minicrt0.o" {object_files} "{build.path}/{archive_file}" "-L{gembedded.lib}" -lcmini -lm -lgcc -o "{build.path}/{build.project_name}.PRG"
 
 recipe.objcopy.elf.pattern="{compiler.path}{compiler.objcopy.cmd}" -O binary /dev/null /dev/null
 recipe.size.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build.project_name}.PRG"
