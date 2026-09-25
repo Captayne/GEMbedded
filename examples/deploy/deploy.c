@@ -290,13 +290,24 @@ static int poll_console(void)
  * The menu entry is our own string: mn_register() keeps the pointer, the
  * way Atari TOS does, so writing into it renames the entry.  The desktop
  * draws it when the menu is pulled down, and that is how the machine
- * itself shows that Deploy is listening -- and how much it has taken.
+ * itself shows what Deploy is doing.
+ *
+ * A tick in front means "listening", and it is the character the AES
+ * itself uses for a checked menu item (8).  Clicking the entry turns it
+ * off and on: while Deploy listens, the USB console belongs to it and
+ * nothing typed there reaches the keyboard.
  */
+#define TICK    '\010'
+
 static char acc_title[24];
+static char title_count[8];
+static int  listening = 1;
 
 static void set_title(const char *state)
 {
-    strcpy(acc_title, "  Deploy ");
+    acc_title[0] = listening ? TICK : ' ';
+    acc_title[1] = '\0';
+    strcat(acc_title, " Deploy ");
     strcat(acc_title, state);
 }
 
@@ -325,17 +336,20 @@ static void acc_main(void)
     {
         short ev = evnt_multi_mesag_timer(50, msg);
 
+        /* the entry is a switch: clicking it turns listening off and on */
         if ((ev & MU_MESAG) && msg[0] == AC_OPEN && msg[4] == menu_id)
         {
-            char text[128];
-
-            strcpy(text, "[0][GEMbedded deploy|");
-            strcat(text, status);
-            strcat(text, "][ OK ]");
-            form_alert(1, text);
+            listening = !listening;
+            ucn->set_raw(listening);
+            set_title(count ? title_count : "[waiting]");
+            form_alert(1, listening
+                ? "[0][Deploy is listening.|Programs land on F:,"
+                  "|accessories on C:.][ OK ]"
+                : "[0][Deploy is off.|The USB console is the"
+                  "|keyboard again.][ OK ]");
         }
 
-        if (poll_console())
+        if (listening && poll_console())
         {
             /*
              * Hand it to the shell.  It starts when what is running now
@@ -343,18 +357,16 @@ static void acc_main(void)
              * that somebody asked.  The message afterwards is only to
              * wake it from its wait.
              */
-            count++;
             {   /* "[3]": three programs taken since the machine started */
-                char n[8];
-                int  i = 0, d = (int)(count % 100);
+                int i = 0, d = (int)(++count % 100);
 
-                n[i++] = '[';
+                title_count[i++] = '[';
                 if (d >= 10)
-                    n[i++] = (char)('0' + d / 10);
-                n[i++] = (char)('0' + d % 10);
-                n[i++] = ']';
-                n[i] = '\0';
-                set_title(n);
+                    title_count[i++] = (char)('0' + d / 10);
+                title_count[i++] = (char)('0' + d % 10);
+                title_count[i++] = ']';
+                title_count[i] = '\0';
+                set_title(title_count);
             }
             tail[0] = '\0';
             shel_write(SHW_EXEC, 1, 0, path, tail);
