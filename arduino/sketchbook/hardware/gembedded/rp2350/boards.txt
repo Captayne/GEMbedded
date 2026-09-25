@@ -1,0 +1,26 @@
+# boards.txt - the machines a sketch can be built for
+#
+# One for now: the Waveshare RP2350-PiZero with the 2.8" display, running
+# pTOS on IRKernel.  A sketch becomes a GEM program (.PRG) that is sent to
+# the machine with DEPLOY running on it.
+
+menu.debug=Debug info
+
+gembedded.name=GEMbedded (RP2350, 320x240)
+gembedded.build.mcu=cortex-m33
+gembedded.build.core=gem
+gembedded.build.variant=
+gembedded.build.board=GEMBEDDED_RP2350
+gembedded.build.extra_flags=-DGEMBEDDED=1
+
+gembedded.upload.tool=gemdeploy
+gembedded.upload.tool.default=gemdeploy
+gembedded.upload.maximum_size=8388608
+gembedded.upload.maximum_data_size=466944
+gembedded.upload.use_1200bps_touch=false
+gembedded.upload.wait_for_upload_port=false
+
+gembedded.menu.debug.none=None
+gembedded.menu.debug.none.build.debug_flags=
+gembedded.menu.debug.symbols=Symbols in the file
+gembedded.menu.debug.symbols.build.debug_flags=-g
