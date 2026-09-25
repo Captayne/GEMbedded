@@ -3,10 +3,21 @@
  *
  * Copyright (C) 2026 Andreas Keibel
  *
- * Nothing reaches the machine unless this program is running: it takes
- * the USB console over (the _UCN cookie, pTOS include/usbcon.h), waits
- * for a transfer, writes it to F:\ and, if "run after upload" is ticked,
- * starts it.  Quitting hands the console back to the keyboard.
+ * Nothing reaches the machine unless this is running: it takes the USB
+ * console over (the _UCN cookie, pTOS include/usbcon.h), waits for a
+ * transfer, writes it to F:\ and starts it.
+ *
+ * The same file serves twice, and the basepage says which it is:
+ *
+ *   DEPLOY.PRG   as a program, full screen, with a Quit button.  It ends
+ *                when it starts what it received, so every upload needs
+ *                it started again.
+ *   DEPLOY.ACC   as a desk accessory in C:\, loaded at boot.  It is an
+ *                AES process of its own -- one of the kernel's tasks --
+ *                and so it keeps listening while the desktop or a
+ *                program is running.  Upload as often as you like.
+ *                What arrives is handed to the shell (shel_write), and
+ *                whatever runs now makes way for it.
  *
  * The transfer, sent by tools/ptosdeploy.py:
  *
@@ -30,6 +41,7 @@
 #include "gem.h"
 
 #define DEST_DRIVE      "F:\\"
+#define CMDTAILSIZE     128             /* what GEM hands a program */
 #define CHUNK           512
 #define TIMEOUT_TICKS   1000            /* 5 s, in 200 Hz ticks */
 
@@ -81,10 +93,13 @@ static void build(void)
     tree[O_RUN].ob_state = run_after ? SELECTED : 0;
 }
 
+static int is_acc;              /* started as a desk accessory */
+
 static void show(const char *text)
 {
     strcpy(status, text);
-    objc_draw(tree, O_ROOT, 8, 0, 0, scr_w, scr_h);
+    if (!is_acc)                /* the accessory has no screen of its own */
+        objc_draw(tree, O_ROOT, 8, 0, 0, scr_w, scr_h);
 }
 
 /* ---- the transfer ---- */
@@ -222,19 +237,113 @@ static int transfer(void)
     }
 
     reply("+ ok");
-    run_after = (tree[O_RUN].ob_state & SELECTED) != 0;
+    if (!is_acc)
+        run_after = (tree[O_RUN].ob_state & SELECTED) != 0;
     return (flags & 1) && run_after;
 }
 
-/* ---- main ---- */
+/* ---- looking at the console ---- */
 
-void start_main(BASEPAGE *bp);
+/*
+ * "PTUP1" announces a transfer; anything else is skipped, so that the
+ * leftovers of a broken one do not confuse us.  Returns 1 when a program
+ * arrived that is meant to be started.
+ */
+static int poll_console(void)
+{
+    static int match;
+    unsigned char c;
 
-void start_main(BASEPAGE *bp)
+    while (ucn->status() > 0)
+    {
+        if (ucn->read(&c, 1) != 1)
+            return 0;
+        if (c == (unsigned char)"PTUP1"[match])
+        {
+            if (++match < 5)
+                continue;
+            match = 0;
+            show("Receiving...");
+            if (transfer())
+                return 1;
+            show("Waiting for an upload...");
+        }
+        else
+            match = (c == (unsigned char)'P') ? 1 : 0;
+    }
+    return 0;
+}
+
+
+/* ---- as a desk accessory ---- */
+
+/*
+ * It never ends.  Between uploads it sleeps in evnt_multi() like any
+ * other process and costs nothing; the kernel gives it its share when
+ * something arrives.
+ */
+static void acc_main(void)
+{
+    short msg[8], menu_id, apid;
+    char  tail[CMDTAILSIZE];
+    long  count = 0;
+
+    apid = appl_init();
+    menu_id = menu_register(apid, "  Deploy");
+
+    if (Ssystem(S_GETCOOKIE, UCN_COOKIE, (long)&ucn) != 0 || !ucn
+        || ucn->version < UCN_VERSION)
+    {
+        for (;;)                /* an accessory must not end */
+            evnt_multi_mesag_timer(1000, msg);
+    }
+
+    ucn->set_raw(1);            /* ours for good: nobody else listens */
+    strcpy(status, "Waiting for an upload...");
+
+    for (;;)
+    {
+        short ev = evnt_multi_mesag_timer(50, msg);
+
+        if ((ev & MU_MESAG) && msg[0] == AC_OPEN && msg[4] == menu_id)
+        {
+            char text[128];
+
+            strcpy(text, "[0][GEMbedded deploy|");
+            strcat(text, status);
+            strcat(text, "][ OK ]");
+            form_alert(1, text);
+        }
+
+        if (poll_console())
+        {
+            /*
+             * Hand it to the shell.  It starts when what is running now
+             * ends -- and the desktop of pTOS ends for us when it sees
+             * that somebody asked.  The message afterwards is only to
+             * wake it from its wait.
+             */
+            count++;
+            tail[0] = '\0';
+            shel_write(SHW_EXEC, 1, 0, path, tail);
+
+            msg[0] = 0;         /* nothing the desktop knows: just a nudge */
+            msg[1] = apid;
+            msg[2] = 0;
+            appl_write(0, 16, msg);
+
+            strcpy(status, "Waiting for an upload...");
+        }
+    }
+}
+
+
+/* ---- as a program ---- */
+
+static void app_main(BASEPAGE *bp)
 {
     short msg[8], mx, my, button, kstate, kret, bret;
     short which;
-    unsigned char c;
 
     Mshrink(bp, sizeof(BASEPAGE) + bp->p_tlen + bp->p_dlen + bp->p_blen);
     appl_init();
@@ -272,34 +381,14 @@ void start_main(BASEPAGE *bp)
             }
         }
 
-        /* "PTUP1" announces a transfer; everything else is skipped, so
-         * that leftovers of a broken transfer do not confuse us */
-        while (ucn->status() > 0)
+        if (poll_console())
         {
-            static const char magic[] = "PTUP1";
-            static int match;
-
-            if (ucn->read(&c, 1) != 1)
-                break;
-            if (c == (unsigned char)magic[match])
-            {
-                if (++match < 5)
-                    continue;
-                match = 0;
-                show("Receiving...");
-                if (transfer())
-                {
-                    ucn->set_raw(0);
-                    graf_mouse(M_ON, 0);
-                    wind_update(END_UPDATE);
-                    appl_exit();
-                    Pexec(0, path, "", 0L);     /* run it */
-                    Pterm0();
-                }
-                show("Waiting for an upload...");
-            }
-            else
-                match = (c == (unsigned char)magic[0]) ? 1 : 0;
+            ucn->set_raw(0);
+            graf_mouse(M_ON, 0);
+            wind_update(END_UPDATE);
+            appl_exit();
+            Pexec(0, path, "", 0L);     /* run it, and end with it */
+            Pterm0();
         }
     }
 
@@ -307,4 +396,20 @@ void start_main(BASEPAGE *bp)
     wind_update(END_UPDATE);
     appl_exit();
     Pterm0();
+}
+
+
+/* ---- which of the two ---- */
+
+void start_main(BASEPAGE *bp);
+
+void start_main(BASEPAGE *bp)
+{
+    /* An accessory is loaded by the AES itself and has no parent. */
+    is_acc = (bp->p_parent == 0);
+
+    if (is_acc)
+        acc_main();             /* never returns */
+    else
+        app_main(bp);
 }

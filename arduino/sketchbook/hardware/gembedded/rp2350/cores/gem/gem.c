@@ -59,6 +59,33 @@ short evnt_timer(unsigned long ms)
     return aes(24, 2, 1, 0);
 }
 
+short appl_write(short id, short length, const void *msg)
+{
+    int_in[0] = id;
+    int_in[1] = length;
+    addr_in[0] = (long)msg;
+    return aes(12, 2, 1, 1);
+}
+
+/*
+ * Ask the shell to run something.  It takes effect when whatever is
+ * running now ends -- an accessory that calls this and wants the desktop
+ * to make way sends it a message afterwards, so that it looks and finds
+ * out (the desktop of pTOS does; TOS's does not).
+ *
+ * The command tail is the usual GEM one: its first byte is the length.
+ */
+short shel_write(short doex, short isgraf, short isover,
+                 const char *cmd, const char *tail)
+{
+    int_in[0] = doex;
+    int_in[1] = isgraf;
+    int_in[2] = isover;
+    addr_in[0] = (long)cmd;
+    addr_in[1] = (long)tail;
+    return aes(121, 3, 1, 2);
+}
+
 short menu_register(short apid, const char *name)
 {
     int_in[0] = apid;

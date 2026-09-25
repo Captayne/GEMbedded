@@ -17,7 +17,7 @@ LDFLAGS  = $(CPUFLAGS) -nostartfiles -nostdlib \
 
 OBJS = accstart.o deploy.o gem.o
 
-all: DEPLOY.PRG
+all: DEPLOY.PRG DEPLOY.ACC
 
 DEPLOY.PRG: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -L$(LIBCMINI) -lcmini -lgcc -o $@
@@ -31,7 +31,11 @@ gem.o: $(LIB)/gem.c $(LIB)/gem.h
 deploy.o: deploy.c $(PTOS)/include/usbcon.h $(LIB)/gem.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# The same file twice: the basepage tells it which it is.
+DEPLOY.ACC: DEPLOY.PRG
+	cp $< $@
+
 clean:
-	rm -f *.o DEPLOY.PRG
+	rm -f *.o DEPLOY.PRG DEPLOY.ACC
 
 .PHONY: all clean

@@ -281,30 +281,41 @@ def send(port, path, name, run, quiet=False):
             + struct.pack("<II", len(data), zlib.crc32(data) & 0xffffffff))
 
     port.flush_input()
-    port.write(head)
-    sent = 0
-    while sent < len(data):
-        sent += port.write(data[sent:sent + 4096])
-        if not quiet:
-            sys.stdout.write("\r  %s %7d / %d bytes" % (name, sent, len(data)))
-            sys.stdout.flush()
+    try:
+        port.write(head)
+        sent = 0
+        while sent < len(data):
+            sent += port.write(data[sent:sent + 4096])
+            if not quiet:
+                sys.stdout.write("\r  %s %7d / %d bytes"
+                                 % (name, sent, len(data)))
+                sys.stdout.flush()
+    except OSError:
+        # Nobody is reading at the other end: the console fills up and the
+        # write runs into its timeout.  That is what it looks like when a
+        # program is running instead of DEPLOY.
+        return ("\n- the machine is not listening -- is DEPLOY running, "
+                "or did a program take over?")
     if not quiet:
         sys.stdout.write("\n")
 
+    # The console carries the machine's own messages as well, so wait for
+    # the line that is an answer: "+ ..." or "- ...".
     line, deadline = b"", time.time() + 10.0
     while time.time() < deadline:
         c = port.read(1)
         if not c:
             continue
-        if c in b"\r\n":
-            if line:
-                break
+        if c not in b"\r\n":
+            line += c
             continue
-        line += c
+        if line[:1] in (b"+", b"-"):
+            return line.decode("latin-1")
+        if line and not quiet:
+            print("  [%s]" % line.decode("latin-1").rstrip())
+        line = b""
 
-    if not line:
-        return "- no answer -- is DEPLOY running on the machine?"
-    return line.decode("latin-1")
+    return "- no answer -- is DEPLOY running on the machine?"
 
 
 def main():

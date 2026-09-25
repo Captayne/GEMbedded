@@ -57,6 +57,7 @@ typedef struct
 #define MU_MESAG        0x0010
 #define MU_TIMER        0x0020
 
+#define AP_TERM         50
 #define AC_OPEN         40
 #define AC_CLOSE        41
 
@@ -64,6 +65,9 @@ typedef struct
 #define END_UPDATE      0
 #define BEG_MCTRL       3
 #define END_MCTRL       2
+
+#define SHW_NOEXEC      0       /* shel_write(): back to the desktop */
+#define SHW_EXEC        1       /* ... run this program next */
 
 #define FMD_FINISH      3
 
@@ -76,7 +80,10 @@ short appl_init(void);
 short appl_exit(void);
 short evnt_mesag(short *msg);
 short evnt_timer(unsigned long ms);
+short appl_write(short id, short length, const void *msg);
 short menu_register(short apid, const char *name);
+short shel_write(short doex, short isgraf, short isover,
+                 const char *cmd, const char *tail);
 short form_alert(short defbutton, const char *text);
 short form_dial(short flag, short lx, short ly, short lw, short lh,
                 short bx, short by, short bw, short bh);
