@@ -2,6 +2,9 @@
 pTOS/
 # build output
 *.o
+# except the TOS start-up object a sketch links against: it belongs to
+# the board package, and building it needs the whole pTOS build
+!arduino/sketchbook/hardware/gembedded/rp2350/lib/minicrt0.o
 *.elf
 *.map
 *.uf2
