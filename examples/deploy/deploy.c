@@ -300,15 +300,21 @@ static int poll_console(void)
 #define TICK    '\010'
 
 static char acc_title[24];
-static char title_count[8];
+static char title_count[8];             /* "[3]" once something arrived */
+static const char *title_note = "";
 static int  listening = 1;
 
-static void set_title(const char *state)
+static void set_title(void)
 {
     acc_title[0] = listening ? TICK : ' ';
     acc_title[1] = '\0';
-    strcat(acc_title, " Deploy ");
-    strcat(acc_title, state);
+    strcat(acc_title, " Deploy");
+    if (title_count[0])
+    {
+        strcat(acc_title, " ");
+        strcat(acc_title, title_count);
+    }
+    strcat(acc_title, title_note);
 }
 
 static void acc_main(void)
@@ -318,13 +324,15 @@ static void acc_main(void)
     long  count = 0;
 
     apid = appl_init();
-    set_title("[waiting]");
+    set_title();
     menu_id = menu_register(apid, acc_title);
 
     if (Ssystem(S_GETCOOKIE, UCN_COOKIE, (long)&ucn) != 0 || !ucn
         || ucn->version < UCN_VERSION)
     {
-        set_title("[no console]");
+        title_note = " (no console)";
+        listening = 0;
+        set_title();
         for (;;)                /* an accessory must not end */
             evnt_multi_mesag_timer(1000, msg);
     }
@@ -341,7 +349,7 @@ static void acc_main(void)
         {
             listening = !listening;
             ucn->set_raw(listening);
-            set_title(count ? title_count : "[waiting]");
+            set_title();
             form_alert(1, listening
                 ? "[0][Deploy is listening.|Programs land on F:,"
                   "|accessories on C:.][ OK ]"
@@ -366,7 +374,7 @@ static void acc_main(void)
                 title_count[i++] = (char)('0' + d % 10);
                 title_count[i++] = ']';
                 title_count[i] = '\0';
-                set_title(title_count);
+                set_title();
             }
             tail[0] = '\0';
             shel_write(SHW_EXEC, 1, 0, path, tail);
