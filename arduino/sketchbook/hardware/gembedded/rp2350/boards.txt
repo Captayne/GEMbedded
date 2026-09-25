@@ -13,6 +13,10 @@ gembedded.build.variant=
 gembedded.build.board=GEMBEDDED_RP2350
 gembedded.build.extra_flags=-DGEMBEDDED=1
 
+# which port belongs to this board: what rp2350_usbcon.c announces
+gembedded.upload_port.0.vid=0x1209
+gembedded.upload_port.0.pid=0x0001
+
 gembedded.upload.tool=gemdeploy
 gembedded.upload.tool.default=gemdeploy
 gembedded.upload.maximum_size=8388608

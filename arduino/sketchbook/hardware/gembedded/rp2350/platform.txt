@@ -16,6 +16,13 @@
 name=GEMbedded
 version=0.1.0
 
+# How the IDE finds the machine and talks to it.  Without these it does
+# not connect the port you chose with this board, and an upload fails
+# before anything of ours is called.
+pluggable_discovery.required.0=builtin:serial-discovery
+pluggable_discovery.required.1=builtin:mdns-discovery
+pluggable_monitor.required.serial=builtin:serial-monitor
+
 # ---- where things are -------------------------------------------------
 # runtime.platform.path is .../arduino/sketchbook/hardware/gembedded/rp2350
 gembedded.root={runtime.platform.path}/../../../../..
