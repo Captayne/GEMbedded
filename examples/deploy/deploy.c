@@ -40,7 +40,8 @@
 #include "usbcon.h"
 #include "gem.h"
 
-#define DEST_DRIVE      "F:\\"
+#define DEST_DRIVE      "F:\\"        /* programs */
+#define ACC_DRIVE       "C:\\"        /* accessories: the boot drive */
 #define CMDTAILSIZE     128             /* what GEM hands a program */
 #define CHUNK           512
 #define TIMEOUT_TICKS   1000            /* 5 s, in 200 Hz ticks */
@@ -194,7 +195,10 @@ static int transfer(void)
         return 0;
     }
 
-    strcpy(path, DEST_DRIVE);
+    /* An accessory only counts when it is on the boot drive, so that is
+       where it goes -- upload, restart, and it is loaded. */
+    strcpy(path, (namelen > 4 && strcmp(name + namelen - 4, ".ACC") == 0)
+                 ? ACC_DRIVE : DEST_DRIVE);
     strcat(path, name);
     show(path);
 
@@ -282,6 +286,20 @@ static int poll_console(void)
  * other process and costs nothing; the kernel gives it its share when
  * something arrives.
  */
+/*
+ * The menu entry is our own string: mn_register() keeps the pointer, the
+ * way Atari TOS does, so writing into it renames the entry.  The desktop
+ * draws it when the menu is pulled down, and that is how the machine
+ * itself shows that Deploy is listening -- and how much it has taken.
+ */
+static char acc_title[24];
+
+static void set_title(const char *state)
+{
+    strcpy(acc_title, "  Deploy ");
+    strcat(acc_title, state);
+}
+
 static void acc_main(void)
 {
     short msg[8], menu_id, apid;
@@ -289,11 +307,13 @@ static void acc_main(void)
     long  count = 0;
 
     apid = appl_init();
-    menu_id = menu_register(apid, "  Deploy");
+    set_title("[waiting]");
+    menu_id = menu_register(apid, acc_title);
 
     if (Ssystem(S_GETCOOKIE, UCN_COOKIE, (long)&ucn) != 0 || !ucn
         || ucn->version < UCN_VERSION)
     {
+        set_title("[no console]");
         for (;;)                /* an accessory must not end */
             evnt_multi_mesag_timer(1000, msg);
     }
@@ -324,6 +344,18 @@ static void acc_main(void)
              * wake it from its wait.
              */
             count++;
+            {   /* "[3]": three programs taken since the machine started */
+                char n[8];
+                int  i = 0, d = (int)(count % 100);
+
+                n[i++] = '[';
+                if (d >= 10)
+                    n[i++] = (char)('0' + d / 10);
+                n[i++] = (char)('0' + d % 10);
+                n[i++] = ']';
+                n[i] = '\0';
+                set_title(n);
+            }
             tail[0] = '\0';
             shel_write(SHW_EXEC, 1, 0, path, tail);
 

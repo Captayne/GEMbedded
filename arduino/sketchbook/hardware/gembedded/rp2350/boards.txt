@@ -17,8 +17,12 @@ gembedded.build.extra_flags=-DGEMBEDDED=1
 gembedded.upload_port.0.vid=0x1209
 gembedded.upload_port.0.pid=0x0001
 
+# The tool is looked up by the port's protocol first (pluggable upload),
+# then by "default"; give it both names.
 gembedded.upload.tool=gemdeploy
 gembedded.upload.tool.default=gemdeploy
+gembedded.upload.tool.serial=gemdeploy
+gembedded.upload.protocol=serial
 gembedded.upload.maximum_size=8388608
 gembedded.upload.maximum_data_size=466944
 gembedded.upload.use_1200bps_touch=false
