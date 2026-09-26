@@ -61,7 +61,13 @@ compiler.c.elf.cmd={compiler.prefix}gcc
 # is the same relocation under a name it does.
 # --wrap=main: global constructors run before the program starts
 # (cores/gem/cxx.cpp); libcmini's start-up does not do it.
-compiler.c.elf.flags=-nostartfiles -nostdlib -Wl,-q -Wl,-Ttext=0 -Wl,-e_start -Wl,--wrap=main -Wl,--target1-abs
+# -u __wrap_main: and that wrapper has to be linked in for it to happen.
+# The core archive is named before -lcmini, and at that point nothing has
+# asked for __wrap_main yet -- the reference appears later, when
+# libcmini's minimain.o is pulled in, and the linker does not go back for
+# an archive it has already passed.  Entering the symbol as undefined
+# before the link starts makes cxx.o come out on the first sweep.
+compiler.c.elf.flags=-nostartfiles -nostdlib -Wl,-q -Wl,-Ttext=0 -Wl,-e_start -Wl,--wrap=main -Wl,-u,__wrap_main -Wl,--target1-abs
 compiler.libraries.ldflags=
 compiler.objcopy.cmd={compiler.prefix}objcopy
 compiler.size.cmd={compiler.prefix}size
