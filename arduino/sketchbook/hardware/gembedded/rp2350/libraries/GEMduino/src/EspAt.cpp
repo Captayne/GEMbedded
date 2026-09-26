@@ -28,6 +28,8 @@ bool EspAt::command(const char *cmd, unsigned long timeout_ms)
     resp[0] = '\0';
 
     Serial1.flushInput();
+    if (trace)
+        trace(cmd, true);
     Serial1.write(cmd);
     Serial1.write("\r\n");
 
@@ -46,6 +48,8 @@ bool EspAt::command(const char *cmd, unsigned long timeout_ms)
             return false;
         if (n == 0)
             continue;                   /* the blank line after an echo */
+        if (trace)
+            trace(line, false);
 
         /* keep it, as much as fits */
         if (used + n + 2 < (int)sizeof(resp))
@@ -120,12 +124,29 @@ bool EspAt::startTime(short tz, const char *server)
     num[i++] = (char)('0' + v % 10);
     num[i] = '\0';
 
+    /*
+     * Firmware differs in what it wants here.  The 1.7 line of the
+     * ESP8266 takes the server in quotes; some builds only take the
+     * time zone and use their own server; and a few want no quotes.
+     * Try them in that order rather than deciding for the module.
+     */
     strcpy(cmd, "AT+CIPSNTPCFG=1,");
     strcat(cmd, num);
     strcat(cmd, ",\"");
     strncat(cmd, server, 48);
     strcat(cmd, "\"");
+    if (command(cmd))
+        return true;
 
+    strcpy(cmd, "AT+CIPSNTPCFG=1,");
+    strcat(cmd, num);
+    strcat(cmd, ",");
+    strncat(cmd, server, 48);
+    if (command(cmd))
+        return true;
+
+    strcpy(cmd, "AT+CIPSNTPCFG=1,");
+    strcat(cmd, num);
     return command(cmd);
 }
 

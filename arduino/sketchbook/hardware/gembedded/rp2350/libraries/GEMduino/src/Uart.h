@@ -18,6 +18,8 @@
 #ifndef GEMDUINO_UART_H
 #define GEMDUINO_UART_H
 
+struct irk_api;
+
 class Uart
 {
 public:
@@ -40,6 +42,12 @@ public:
      * it waits, other programs run.
      */
     int  readLine(char *buf, int size, unsigned long timeout_ms);
+
+private:
+    /* the kernel, when it is there: then a cyclic task on the other core
+       does the reading and this process may sleep while it waits */
+    struct irk_api *k = 0;
+    unsigned short feeder = 0;
 };
 
 extern Uart Serial1;

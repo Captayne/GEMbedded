@@ -99,6 +99,34 @@ static void redraw(short x, short y, short w, short h)
     wind_update(END_UPDATE);
 }
 
+/*
+ * Everything also goes into F:\\WIFITIME.LOG, because a window nine lines
+ * deep is no place to watch a conversation go by.  The file is opened and
+ * closed around every line: slower, but it survives a program that hangs
+ * -- which is exactly the program one wants a log of.
+ */
+#define LOGFILE     "F:\\WIFITIME.LOG"
+
+static void log_start(void)
+{
+    long fh = Fcreate(LOGFILE, 0);
+
+    if (fh >= 0)
+        Fclose((short)fh);
+}
+
+static void log_line_to_file(const char *text)
+{
+    long fh = Fopen(LOGFILE, 2);        /* read and write */
+
+    if (fh < 0)
+        return;
+    Fseek(0L, (short)fh, 2);            /* to the end */
+    Fwrite((short)fh, (long)strlen(text), (void *)text);
+    Fwrite((short)fh, 2L, (void *)"\r\n");
+    Fclose((short)fh);
+}
+
 /* a line in the window, and the older ones move up */
 static void say(const char *text)
 {
@@ -113,6 +141,7 @@ static void say(const char *text)
     strncpy(log_line[log_used], text, sizeof(log_line[0]) - 1);
     log_line[log_used][sizeof(log_line[0]) - 1] = '\0';
     log_used++;
+    log_line_to_file(text);
     redraw(wx, wy, ww, wh);
 }
 
@@ -173,12 +202,50 @@ static bool find_settings(void)
     return ssid[0] != '\0';
 }
 
+static bool ask_time(const char *server, short seconds);
+
+/* the conversation with the module, in the window */
+static void trace(const char *line, bool sent)
+{
+    char text[40];
+
+    text[0] = sent ? '>' : '<';
+    text[1] = ' ';
+    strncpy(text + 2, line, sizeof(text) - 3);
+    text[sizeof(text) - 1] = 0;
+    say(text);
+}
+
+/* the last lines the module sent, so that a refusal is not a mystery */
+static void show_reply(void)
+{
+    const char *p = Esp.response();
+    char line[40];
+    short shown = 0;
+
+    while (*p && shown < 3)
+    {
+        short i = 0;
+
+        while (*p && *p != '\n' && i < (short)sizeof(line) - 1)
+            line[i++] = *p++;
+        line[i] = '\0';
+        if (*p == '\n')
+            p++;
+        if (i > 0)
+        {
+            say(line);
+            shown++;
+        }
+    }
+}
+
 static void get_time(void)
 {
     AtTime t;
     short tries;
 
-    say("Waking the module...");
+    Esp.onTrace(trace);
     if (!Esp.begin())
     {
         say("No answer on GPIO 4/5.");
@@ -195,25 +262,49 @@ static void get_time(void)
     }
     say("Joined.");
 
-    if (!Esp.startTime(1))              /* whole hours from UTC */
+    /*
+     * Two attempts, and the second one is the interesting one: a name
+     * like pool.ntp.org needs the module to look it up, and this
+     * firmware's built-in servers are far away.  An address needs
+     * nobody's help.
+     */
+    if (!ask_time("pool.ntp.org", 8))
     {
-        say("This firmware has no SNTP.");
-        return;
+        say("Now by address:");
+        if (!ask_time("162.159.200.1", 10))   /* Cloudflare's time service */
+        {
+            say("Still nothing. It said:");
+            show_reply();
+        }
+    }
+}
+
+/* Configure a time server, then wait for a time that is not 1970. */
+static bool ask_time(const char *server, short seconds)
+{
+    AtTime t;
+    short tries;
+
+    say(server);
+    if (!Esp.startTime(1, server))      /* whole hours from UTC */
+    {
+        say("SNTP was refused. It said:");
+        show_reply();
+        return false;
     }
 
-    say("Asking for the time...");
-    for (tries = 0; tries < 15; tries++)
+    for (tries = 0; tries < seconds; tries++)
     {
         if (Esp.time(&t))
         {
             set_clock(&t);
             say("The clock is set.");
             show_clock();
-            return;
+            return true;
         }
         delay(1000);                    /* the others keep running */
     }
-    say("No time came back.");
+    return false;
 }
 
 /* ---- the program ---- */
@@ -249,6 +340,7 @@ int main(void)
     wind_open(win, (short)(dx + (dw - w) / 2), (short)(dy + (dh - h) / 2), w, h);
     layout();
 
+    log_start();
     if (!find_settings())
     {
         say("No network is set up.");

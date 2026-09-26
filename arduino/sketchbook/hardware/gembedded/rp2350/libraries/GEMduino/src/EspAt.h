@@ -42,6 +42,14 @@ public:
        response(), the newest last. */
     bool command(const char *cmd, unsigned long timeout_ms = 2000);
 
+    /*
+     * Watch the conversation.  Every line that goes out and every line
+     * that comes back is handed to fn, with sent saying which way it
+     * went.  Nothing else tells you as much about a module that will not
+     * do what it is told.
+     */
+    void onTrace(void (*fn)(const char *line, bool sent)) { trace = fn; }
+
     const char *response(void) const { return resp; }
 
     /* "AT version:1.7.5.0(...)" and the rest of AT+GMR */
@@ -65,6 +73,7 @@ public:
     bool time(AtTime *t);
 
 private:
+    void (*trace)(const char *line, bool sent) = 0;
     char resp[320];
 };
 
