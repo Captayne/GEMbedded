@@ -59,6 +59,12 @@ short evnt_timer(unsigned long ms)
     return aes(24, 2, 1, 0);
 }
 
+/* Give way to whoever is furthest behind, and come back at once. */
+short appl_yield(void)
+{
+    return aes(17, 0, 1, 0);
+}
+
 short appl_write(short id, short length, const void *msg)
 {
     int_in[0] = id;

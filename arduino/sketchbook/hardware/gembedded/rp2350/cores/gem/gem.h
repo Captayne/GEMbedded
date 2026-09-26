@@ -86,6 +86,7 @@ short appl_init(void);
 short appl_exit(void);
 short evnt_mesag(short *msg);
 short evnt_timer(unsigned long ms);
+short appl_yield(void);
 short appl_write(short id, short length, const void *msg);
 short menu_register(short apid, const char *name);
 short shel_write(short doex, short isgraf, short isover,
