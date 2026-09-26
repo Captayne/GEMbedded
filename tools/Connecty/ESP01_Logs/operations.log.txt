@@ -1,0 +1,704 @@
+FEHLER: RUN-Modus und AT-Kommandomodus bestätigen.
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+FEHLER: RUN-Modus und AT-Kommandomodus bestätigen.
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+Prüfe COM22 mit 115200 Baud …
+Prüfe COM22 mit 9600 Baud …
+Prüfe COM22 mit 57600 Baud …
+Prüfe COM22 mit 38400 Baud …
+Prüfe COM22 mit 19200 Baud …
+Prüfe COM22 mit 74880 Baud …
+Prüfe COM22 mit 230400 Baud …
+Prüfe COM22 mit 460800 Baud …
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting....
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Stub flasher is already running. No upload is necessary.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Stub flasher is already running. No upload is necessary.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting....
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+Bedienoberfläche aktualisiert; vorhandene Befunde übernommen. Keine Hardwareaktion ausgeführt.
+Bedienoberfläche aktualisiert; vorhandene Befunde übernommen. Keine Hardwareaktion ausgeführt.
+Geprüftes Paket aus dem Firmwareordner wiederverwendet.
+FEHLER: RUN-Modus und AT-Kommandomodus bestätigen.
+FEHLER: RUN-Modus und AT-Kommandomodus bestätigen.
+Prüfe COM22 mit 115200 Baud …
+Prüfe COM22 mit 9600 Baud …
+Prüfe COM22 mit 57600 Baud …
+Prüfe COM22 mit 38400 Baud …
+Prüfe COM22 mit 19200 Baud …
+Prüfe COM22 mit 74880 Baud …
+Prüfe COM22 mit 230400 Baud …
+Prüfe COM22 mit 460800 Baud …
+FEHLER: Gewählter Port ist nicht mehr angeschlossen. Ports aktualisieren.
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → ERROR
+AT+UART? → ERROR
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → ERROR
+AT+CIPSSLCCONF? → ERROR
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → ERROR
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → ERROR
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → ERROR
+AT+CIPSTO? → OK
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..............................
+
+ERROR: A serial exception error occurred: Cannot configure port, something went wrong. Original message: PermissionError(13, 'Zugriff verweigert', None, 5)
+Note: This error originates from pySerial. It is likely not a problem with esptool, but with the hardware connection or drivers.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+FEHLER: esptool fehlgeschlagen. Details im Protokoll. esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting..............................
+
+ERROR: A serial exception error occurred: Cannot configure port, something went wrong. Original message: PermissionError(13, 'Zugriff verweigert', None, 5)
+Note: This error originates from pySerial. It is likely not a problem with esptool, but with the hardware connection or drivers.
+For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
+
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting....
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+FEHLER: Firmware auswählen und Programmiermodus, AT-UART sowie Installation bestätigen.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Detecting chip type... ESP8266
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Stub flasher is already running. No upload is necessary.
+
+Flash Memory Information:
+=========================
+Manufacturer: 85
+Device: 6014
+Detected flash size: 1MB
+
+Staying in bootloader.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Stub flasher is already running. No upload is necessary.
+
+Configuring flash size...
+Reading from 0x00001000                                  0.4% 4.00kB/1.00MB [0s]
+Reading from 0x00002000                                  0.8% 8.00kB/1.00MB [0s]
+Reading from 0x00003000                                  1.2% 12.00kB/1.00MB [1s]
+Reading from 0x00004000                                  1.6% 16.00kB/1.00MB [1s]
+Reading from 0x00005000 >                                2.0% 20.00kB/1.00MB [1s]
+Reading from 0x00006000 >                                2.3% 24.00kB/1.00MB [2s]
+Reading from 0x00007000 >                                2.7% 28.00kB/1.00MB [2s]
+Reading from 0x00008000 >                                3.1% 32.00kB/1.00MB [3s]
+Reading from 0x00009000 =                                3.5% 36.00kB/1.00MB [3s]
+Reading from 0x0000a000 =                                3.9% 40.00kB/1.00MB [3s]
+Reading from 0x0000b000 =                                4.3% 44.00kB/1.00MB [4s]
+Reading from 0x0000c000 =                                4.7% 48.00kB/1.00MB [4s]
+Reading from 0x0000d000 =>                               5.1% 52.00kB/1.00MB [4s]
+Reading from 0x0000e000 =>                               5.5% 56.00kB/1.00MB [5s]
+Reading from 0x0000f000 =>                               5.9% 60.00kB/1.00MB [5s]
+Reading from 0x00010000 =>                               6.2% 64.00kB/1.00MB [6s]
+Reading from 0x00011000 =>                               6.6% 68.00kB/1.00MB [6s]
+Reading from 0x00012000 ==                               7.0% 72.00kB/1.00MB [6s]
+Reading from 0x00013000 ==                               7.4% 76.00kB/1.00MB [7s]
+Reading from 0x00014000 ==                               7.8% 80.00kB/1.00MB [7s]
+Reading from 0x00015000 ==                               8.2% 84.00kB/1.00MB [7s]
+Reading from 0x00016000 ==>                              8.6% 88.00kB/1.00MB [8s]
+Reading from 0x00017000 ==>                              9.0% 92.00kB/1.00MB [8s]
+Reading from 0x00018000 ==>                              9.4% 96.00kB/1.00MB [9s]
+Reading from 0x00019000 ==>                              9.8% 100.00kB/1.00MB [9s]
+Reading from 0x0001a000 ===                             10.2% 104.00kB/1.00MB [9s]
+Reading from 0x0001b000 ===                             10.5% 108.00kB/1.00MB [10s]
+Reading from 0x0001c000 ===                             10.9% 112.00kB/1.00MB [10s]
+Reading from 0x0001d000 ===                             11.3% 116.00kB/1.00MB [10s]
+Reading from 0x0001e000 ===>                            11.7% 120.00kB/1.00MB [11s]
+Reading from 0x0001f000 ===>                            12.1% 124.00kB/1.00MB [11s]
+Reading from 0x00020000 ===>                            12.5% 128.00kB/1.00MB [12s]
+Reading from 0x00021000 ===>                            12.9% 132.00kB/1.00MB [12s]
+Reading from 0x00022000 ===>                            13.3% 136.00kB/1.00MB [12s]
+Reading from 0x00023000 ====                            13.7% 140.00kB/1.00MB [13s]
+Reading from 0x00024000 ====                            14.1% 144.00kB/1.00MB [13s]
+Reading from 0x00025000 ====                            14.5% 148.00kB/1.00MB [13s]
+Reading from 0x00026000 ====                            14.8% 152.00kB/1.00MB [14s]
+Reading from 0x00027000 ====>                           15.2% 156.00kB/1.00MB [14s]
+Reading from 0x00028000 ====>                           15.6% 160.00kB/1.00MB [15s]
+Reading from 0x00029000 ====>                           16.0% 164.00kB/1.00MB [15s]
+Reading from 0x0002a000 ====>                           16.4% 168.00kB/1.00MB [15s]
+Reading from 0x0002b000 =====                           16.8% 172.00kB/1.00MB [16s]
+Reading from 0x0002c000 =====                           17.2% 176.00kB/1.00MB [16s]
+Reading from 0x0002d000 =====                           17.6% 180.00kB/1.00MB [16s]
+Reading from 0x0002e000 =====                           18.0% 184.00kB/1.00MB [17s]
+Reading from 0x0002f000 =====>                          18.4% 188.00kB/1.00MB [17s]
+Reading from 0x00030000 =====>                          18.8% 192.00kB/1.00MB [18s]
+Reading from 0x00031000 =====>                          19.1% 196.00kB/1.00MB [18s]
+Reading from 0x00032000 =====>                          19.5% 200.00kB/1.00MB [18s]
+Reading from 0x00033000 =====>                          19.9% 204.00kB/1.00MB [19s]
+Reading from 0x00034000 ======                          20.3% 208.00kB/1.00MB [19s]
+Reading from 0x00035000 ======                          20.7% 212.00kB/1.00MB [19s]
+Reading from 0x00036000 ======                          21.1% 216.00kB/1.00MB [20s]
+Reading from 0x00037000 ======                          21.5% 220.00kB/1.00MB [20s]
+Reading from 0x00038000 ======>                         21.9% 224.00kB/1.00MB [21s]
+Reading from 0x00039000 ======>                         22.3% 228.00kB/1.00MB [21s]
+Reading from 0x0003a000 ======>                         22.7% 232.00kB/1.00MB [21s]
+Reading from 0x0003b000 ======>                         23.0% 236.00kB/1.00MB [22s]
+Reading from 0x0003c000 =======                         23.4% 240.00kB/1.00MB [22s]
+Reading from 0x0003d000 =======                         23.8% 244.00kB/1.00MB [22s]
+Reading from 0x0003e000 =======                         24.2% 248.00kB/1.00MB [23s]
+Reading from 0x0003f000 =======                         24.6% 252.00kB/1.00MB [23s]
+Reading from 0x00040000 =======>                        25.0% 256.00kB/1.00MB [24s]
+Reading from 0x00041000 =======>                        25.4% 260.00kB/1.00MB [24s]
+Reading from 0x00042000 =======>                        25.8% 264.00kB/1.00MB [24s]
+Reading from 0x00043000 =======>                        26.2% 268.00kB/1.00MB [25s]
+Reading from 0x00044000 =======>                        26.6% 272.00kB/1.00MB [25s]
+Reading from 0x00045000 ========                        27.0% 276.00kB/1.00MB [25s]
+Reading from 0x00046000 ========                        27.3% 280.00kB/1.00MB [26s]
+Reading from 0x00047000 ========                        27.7% 284.00kB/1.00MB [26s]
+Reading from 0x00048000 ========                        28.1% 288.00kB/1.00MB [27s]
+Reading from 0x00049000 ========>                       28.5% 292.00kB/1.00MB [27s]
+Reading from 0x0004a000 ========>                       28.9% 296.00kB/1.00MB [27s]
+Reading from 0x0004b000 ========>                       29.3% 300.00kB/1.00MB [28s]
+Reading from 0x0004c000 ========>                       29.7% 304.00kB/1.00MB [28s]
+Reading from 0x0004d000 =========                       30.1% 308.00kB/1.00MB [28s]
+Reading from 0x0004e000 =========                       30.5% 312.00kB/1.00MB [29s]
+Reading from 0x0004f000 =========                       30.9% 316.00kB/1.00MB [29s]
+Reading from 0x00050000 =========                       31.2% 320.00kB/1.00MB [30s]
+Reading from 0x00051000 =========                       31.6% 324.00kB/1.00MB [30s]
+Reading from 0x00052000 =========>                      32.0% 328.00kB/1.00MB [30s]
+Reading from 0x00053000 =========>                      32.4% 332.00kB/1.00MB [31s]
+Reading from 0x00054000 =========>                      32.8% 336.00kB/1.00MB [31s]
+Reading from 0x00055000 =========>                      33.2% 340.00kB/1.00MB [31s]
+Reading from 0x00056000 ==========                      33.6% 344.00kB/1.00MB [32s]
+Reading from 0x00057000 ==========                      34.0% 348.00kB/1.00MB [32s]
+Reading from 0x00058000 ==========                      34.4% 352.00kB/1.00MB [33s]
+Reading from 0x00059000 ==========                      34.8% 356.00kB/1.00MB [33s]
+Reading from 0x0005a000 ==========>                     35.2% 360.00kB/1.00MB [33s]
+Reading from 0x0005b000 ==========>                     35.5% 364.00kB/1.00MB [34s]
+Reading from 0x0005c000 ==========>                     35.9% 368.00kB/1.00MB [34s]
+Reading from 0x0005d000 ==========>                     36.3% 372.00kB/1.00MB [34s]
+Reading from 0x0005e000 ===========                     36.7% 376.00kB/1.00MB [35s]
+Reading from 0x0005f000 ===========                     37.1% 380.00kB/1.00MB [35s]
+Reading from 0x00060000 ===========                     37.5% 384.00kB/1.00MB [35s]
+Reading from 0x00061000 ===========                     37.9% 388.00kB/1.00MB [36s]
+Reading from 0x00062000 ===========                     38.3% 392.00kB/1.00MB [36s]
+Reading from 0x00063000 ===========>                    38.7% 396.00kB/1.00MB [37s]
+Reading from 0x00064000 ===========>                    39.1% 400.00kB/1.00MB [37s]
+Reading from 0x00065000 ===========>                    39.5% 404.00kB/1.00MB [37s]
+Reading from 0x00066000 ===========>                    39.8% 408.00kB/1.00MB [38s]
+Reading from 0x00067000 ============                    40.2% 412.00kB/1.00MB [38s]
+Reading from 0x00068000 ============                    40.6% 416.00kB/1.00MB [38s]
+Reading from 0x00069000 ============                    41.0% 420.00kB/1.00MB [39s]
+Reading from 0x0006a000 ============                    41.4% 424.00kB/1.00MB [39s]
+Reading from 0x0006b000 ============>                   41.8% 428.00kB/1.00MB [40s]
+Reading from 0x0006c000 ============>                   42.2% 432.00kB/1.00MB [40s]
+Reading from 0x0006d000 ============>                   42.6% 436.00kB/1.00MB [40s]
+Reading from 0x0006e000 ============>                   43.0% 440.00kB/1.00MB [41s]
+Reading from 0x0006f000 =============                   43.4% 444.00kB/1.00MB [41s]
+Reading from 0x00070000 =============                   43.8% 448.00kB/1.00MB [41s]
+Reading from 0x00071000 =============                   44.1% 452.00kB/1.00MB [42s]
+Reading from 0x00072000 =============                   44.5% 456.00kB/1.00MB [42s]
+Reading from 0x00073000 =============                   44.9% 460.00kB/1.00MB [43s]
+Reading from 0x00074000 =============>                  45.3% 464.00kB/1.00MB [43s]
+Reading from 0x00075000 =============>                  45.7% 468.00kB/1.00MB [43s]
+Reading from 0x00076000 =============>                  46.1% 472.00kB/1.00MB [44s]
+Reading from 0x00077000 =============>                  46.5% 476.00kB/1.00MB [44s]
+Reading from 0x00078000 ==============                  46.9% 480.00kB/1.00MB [44s]
+Reading from 0x00079000 ==============                  47.3% 484.00kB/1.00MB [45s]
+Reading from 0x0007a000 ==============                  47.7% 488.00kB/1.00MB [45s]
+Reading from 0x0007b000 ==============                  48.0% 492.00kB/1.00MB [45s]
+Reading from 0x0007c000 ==============>                 48.4% 496.00kB/1.00MB [46s]
+Reading from 0x0007d000 ==============>                 48.8% 500.00kB/1.00MB [46s]
+Reading from 0x0007e000 ==============>                 49.2% 504.00kB/1.00MB [47s]
+Reading from 0x0007f000 ==============>                 49.6% 508.00kB/1.00MB [47s]
+Reading from 0x00080000 ===============                 50.0% 512.00kB/1.00MB [47s]
+Reading from 0x00081000 ===============                 50.4% 516.00kB/1.00MB [48s]
+Reading from 0x00082000 ===============                 50.8% 520.00kB/1.00MB [48s]
+Reading from 0x00083000 ===============                 51.2% 524.00kB/1.00MB [48s]
+Reading from 0x00084000 ===============                 51.6% 528.00kB/1.00MB [49s]
+Reading from 0x00085000 ===============>                52.0% 532.00kB/1.00MB [49s]
+Reading from 0x00086000 ===============>                52.3% 536.00kB/1.00MB [49s]
+Reading from 0x00087000 ===============>                52.7% 540.00kB/1.00MB [50s]
+Reading from 0x00088000 ===============>                53.1% 544.00kB/1.00MB [50s]
+Reading from 0x00089000 ================                53.5% 548.00kB/1.00MB [51s]
+Reading from 0x0008a000 ================                53.9% 552.00kB/1.00MB [51s]
+Reading from 0x0008b000 ================                54.3% 556.00kB/1.00MB [51s]
+Reading from 0x0008c000 ================                54.7% 560.00kB/1.00MB [52s]
+Reading from 0x0008d000 ================>               55.1% 564.00kB/1.00MB [52s]
+Reading from 0x0008e000 ================>               55.5% 568.00kB/1.00MB [52s]
+Reading from 0x0008f000 ================>               55.9% 572.00kB/1.00MB [53s]
+Reading from 0x00090000 ================>               56.2% 576.00kB/1.00MB [53s]
+Reading from 0x00091000 ================>               56.6% 580.00kB/1.00MB [54s]
+Reading from 0x00092000 =================               57.0% 584.00kB/1.00MB [54s]
+Reading from 0x00093000 =================               57.4% 588.00kB/1.00MB [54s]
+Reading from 0x00094000 =================               57.8% 592.00kB/1.00MB [55s]
+Reading from 0x00095000 =================               58.2% 596.00kB/1.00MB [55s]
+Reading from 0x00096000 =================>              58.6% 600.00kB/1.00MB [55s]
+Reading from 0x00097000 =================>              59.0% 604.00kB/1.00MB [56s]
+Reading from 0x00098000 =================>              59.4% 608.00kB/1.00MB [56s]
+Reading from 0x00099000 =================>              59.8% 612.00kB/1.00MB [56s]
+Reading from 0x0009a000 ==================              60.2% 616.00kB/1.00MB [57s]
+Reading from 0x0009b000 ==================              60.5% 620.00kB/1.00MB [57s]
+Reading from 0x0009c000 ==================              60.9% 624.00kB/1.00MB [58s]
+Reading from 0x0009d000 ==================              61.3% 628.00kB/1.00MB [58s]
+Reading from 0x0009e000 ==================>             61.7% 632.00kB/1.00MB [58s]
+Reading from 0x0009f000 ==================>             62.1% 636.00kB/1.00MB [59s]
+Reading from 0x000a0000 ==================>             62.5% 640.00kB/1.00MB [59s]
+Reading from 0x000a1000 ==================>             62.9% 644.00kB/1.00MB [59s]
+Reading from 0x000a2000 ==================>             63.3% 648.00kB/1.00MB [1:00]
+Reading from 0x000a3000 ===================             63.7% 652.00kB/1.00MB [1:00]
+Reading from 0x000a4000 ===================             64.1% 656.00kB/1.00MB [1:00]
+Reading from 0x000a5000 ===================             64.5% 660.00kB/1.00MB [1:01]
+Reading from 0x000a6000 ===================             64.8% 664.00kB/1.00MB [1:01]
+Reading from 0x000a7000 ===================>            65.2% 668.00kB/1.00MB [1:02]
+Reading from 0x000a8000 ===================>            65.6% 672.00kB/1.00MB [1:02]
+Reading from 0x000a9000 ===================>            66.0% 676.00kB/1.00MB [1:02]
+Reading from 0x000aa000 ===================>            66.4% 680.00kB/1.00MB [1:03]
+Reading from 0x000ab000 ====================            66.8% 684.00kB/1.00MB [1:03]
+Reading from 0x000ac000 ====================            67.2% 688.00kB/1.00MB [1:03]
+Reading from 0x000ad000 ====================            67.6% 692.00kB/1.00MB [1:04]
+Reading from 0x000ae000 ====================            68.0% 696.00kB/1.00MB [1:04]
+Reading from 0x000af000 ====================>           68.4% 700.00kB/1.00MB [1:04]
+Reading from 0x000b0000 ====================>           68.8% 704.00kB/1.00MB [1:05]
+Reading from 0x000b1000 ====================>           69.1% 708.00kB/1.00MB [1:05]
+Reading from 0x000b2000 ====================>           69.5% 712.00kB/1.00MB [1:06]
+Reading from 0x000b3000 ====================>           69.9% 716.00kB/1.00MB [1:06]
+Reading from 0x000b4000 =====================           70.3% 720.00kB/1.00MB [1:06]
+Reading from 0x000b5000 =====================           70.7% 724.00kB/1.00MB [1:07]
+Reading from 0x000b6000 =====================           71.1% 728.00kB/1.00MB [1:07]
+Reading from 0x000b7000 =====================           71.5% 732.00kB/1.00MB [1:07]
+Reading from 0x000b8000 =====================>          71.9% 736.00kB/1.00MB [1:08]
+Reading from 0x000b9000 =====================>          72.3% 740.00kB/1.00MB [1:08]
+Reading from 0x000ba000 =====================>          72.7% 744.00kB/1.00MB [1:09]
+Reading from 0x000bb000 =====================>          73.0% 748.00kB/1.00MB [1:09]
+Reading from 0x000bc000 ======================          73.4% 752.00kB/1.00MB [1:09]
+Reading from 0x000bd000 ======================          73.8% 756.00kB/1.00MB [1:10]
+Reading from 0x000be000 ======================          74.2% 760.00kB/1.00MB [1:10]
+Reading from 0x000bf000 ======================          74.6% 764.00kB/1.00MB [1:10]
+Reading from 0x000c0000 ======================>         75.0% 768.00kB/1.00MB [1:11]
+Reading from 0x000c1000 ======================>         75.4% 772.00kB/1.00MB [1:11]
+Reading from 0x000c2000 ======================>         75.8% 776.00kB/1.00MB [1:11]
+Reading from 0x000c3000 ======================>         76.2% 780.00kB/1.00MB [1:12]
+Reading from 0x000c4000 ======================>         76.6% 784.00kB/1.00MB [1:12]
+Reading from 0x000c5000 =======================         77.0% 788.00kB/1.00MB [1:13]
+Reading from 0x000c6000 =======================         77.3% 792.00kB/1.00MB [1:13]
+Reading from 0x000c7000 =======================         77.7% 796.00kB/1.00MB [1:13]
+Reading from 0x000c8000 =======================         78.1% 800.00kB/1.00MB [1:14]
+Reading from 0x000c9000 =======================>        78.5% 804.00kB/1.00MB [1:14]
+Reading from 0x000ca000 =======================>        78.9% 808.00kB/1.00MB [1:14]
+Reading from 0x000cb000 =======================>        79.3% 812.00kB/1.00MB [1:15]
+Reading from 0x000cc000 =======================>        79.7% 816.00kB/1.00MB [1:15]
+Reading from 0x000cd000 ========================        80.1% 820.00kB/1.00MB [1:15]
+Reading from 0x000ce000 ========================        80.5% 824.00kB/1.00MB [1:16]
+Reading from 0x000cf000 ========================        80.9% 828.00kB/1.00MB [1:16]
+Reading from 0x000d0000 ========================        81.2% 832.00kB/1.00MB [1:17]
+Reading from 0x000d1000 ========================        81.6% 836.00kB/1.00MB [1:17]
+Reading from 0x000d2000 ========================>       82.0% 840.00kB/1.00MB [1:17]
+Reading from 0x000d3000 ========================>       82.4% 844.00kB/1.00MB [1:18]
+Reading from 0x000d4000 ========================>       82.8% 848.00kB/1.00MB [1:18]
+Reading from 0x000d5000 ========================>       83.2% 852.00kB/1.00MB [1:18]
+Reading from 0x000d6000 =========================       83.6% 856.00kB/1.00MB [1:19]
+Reading from 0x000d7000 =========================       84.0% 860.00kB/1.00MB [1:19]
+Reading from 0x000d8000 =========================       84.4% 864.00kB/1.00MB [1:20]
+Reading from 0x000d9000 =========================       84.8% 868.00kB/1.00MB [1:20]
+Reading from 0x000da000 =========================>      85.2% 872.00kB/1.00MB [1:20]
+Reading from 0x000db000 =========================>      85.5% 876.00kB/1.00MB [1:21]
+Reading from 0x000dc000 =========================>      85.9% 880.00kB/1.00MB [1:21]
+Reading from 0x000dd000 =========================>      86.3% 884.00kB/1.00MB [1:21]
+Reading from 0x000de000 ==========================      86.7% 888.00kB/1.00MB [1:22]
+Reading from 0x000df000 ==========================      87.1% 892.00kB/1.00MB [1:22]
+Reading from 0x000e0000 ==========================      87.5% 896.00kB/1.00MB [1:22]
+Reading from 0x000e1000 ==========================      87.9% 900.00kB/1.00MB [1:23]
+Reading from 0x000e2000 ==========================      88.3% 904.00kB/1.00MB [1:23]
+Reading from 0x000e3000 ==========================>     88.7% 908.00kB/1.00MB [1:24]
+Reading from 0x000e4000 ==========================>     89.1% 912.00kB/1.00MB [1:24]
+Reading from 0x000e5000 ==========================>     89.5% 916.00kB/1.00MB [1:24]
+Reading from 0x000e6000 ==========================>     89.8% 920.00kB/1.00MB [1:25]
+Reading from 0x000e7000 ===========================     90.2% 924.00kB/1.00MB [1:25]
+Reading from 0x000e8000 ===========================     90.6% 928.00kB/1.00MB [1:25]
+Reading from 0x000e9000 ===========================     91.0% 932.00kB/1.00MB [1:26]
+Reading from 0x000ea000 ===========================     91.4% 936.00kB/1.00MB [1:26]
+Reading from 0x000eb000 ===========================>    91.8% 940.00kB/1.00MB [1:26]
+Reading from 0x000ec000 ===========================>    92.2% 944.00kB/1.00MB [1:27]
+Reading from 0x000ed000 ===========================>    92.6% 948.00kB/1.00MB [1:27]
+Reading from 0x000ee000 ===========================>    93.0% 952.00kB/1.00MB [1:28]
+Reading from 0x000ef000 ============================    93.4% 956.00kB/1.00MB [1:28]
+Reading from 0x000f0000 ============================    93.8% 960.00kB/1.00MB [1:28]
+Reading from 0x000f1000 ============================    94.1% 964.00kB/1.00MB [1:29]
+Reading from 0x000f2000 ============================    94.5% 968.00kB/1.00MB [1:29]
+Reading from 0x000f3000 ============================    94.9% 972.00kB/1.00MB [1:29]
+Reading from 0x000f4000 ============================>   95.3% 976.00kB/1.00MB [1:30]
+Reading from 0x000f5000 ============================>   95.7% 980.00kB/1.00MB [1:30]
+Reading from 0x000f6000 ============================>   96.1% 984.00kB/1.00MB [1:31]
+Reading from 0x000f7000 ============================>   96.5% 988.00kB/1.00MB [1:31]
+Reading from 0x000f8000 =============================   96.9% 992.00kB/1.00MB [1:31]
+Reading from 0x000f9000 =============================   97.3% 996.00kB/1.00MB [1:32]
+Reading from 0x000fa000 =============================   97.7% 1000.00kB/1.00MB [1:32]
+Reading from 0x000fb000 =============================   98.0% 1004.00kB/1.00MB [1:32]
+Reading from 0x000fc000 =============================>  98.4% 1008.00kB/1.00MB [1:33]
+Reading from 0x000fd000 =============================>  98.8% 1012.00kB/1.00MB [1:33]
+Reading from 0x000fe000 =============================>  99.2% 1016.00kB/1.00MB [1:33]
+Reading from 0x000ff000 =============================>  99.6% 1020.00kB/1.00MB [1:34]
+Reading from 0x00100000 ============================== 100.0% 1.00MB/1.00MB [1:34]
+Read 1048576 bytes from 0x00000000 in 94.7 seconds (88.6 kbit/s) to 'D:\Develop\GEMbedded\Hardware\Connecty\backups\b4e62d1b89fc_20260926_114251_669818.bin'.
+
+Staying in bootloader.
+Vollbackup gesichert: b4e62d1b89fc_20260926_114251_669818.bin
+WARNING: Deprecated: Option '--fill-flash-size' is deprecated. Use '--pad-to-size' instead.
+esptool v5.4.0
+HINT: Consider using --format hex to avoid flashing unused 0xFF padding between input regions.
+Flash parameters set to 0x0320.
+Wrote 0x100000 bytes to file 'D:\Develop\GEMbedded\Hardware\Connecty\backups\install_20260926_114426_969242.bin', ready to flash to offset 0x0.
+Backup fertig. Installiere vollständiges Flashlayout; gespeicherte Einstellungen werden ersetzt.
+esptool v5.4.0
+Serial port COM22:
+NOTE: Pre-connection option "no-reset" was selected. Connection may fail if the chip is not in bootloader or flasher stub mode.
+Connecting...
+Connected to ESP8266 on COM22:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                b4:e6:2d:1b:89:fc
+
+Stub flasher is already running. No upload is necessary.
+
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x000fffff...
+Compressed 1048576 bytes to 300964...
+Writing at 0x000054b7 =>                               5.4% 16.00kB/293.91kB [1s]
+Writing at 0x0000ab30 ===                             10.9% 32.00kB/293.91kB [2s]
+Writing at 0x00010001 ====>                           16.3% 48.00kB/293.91kB [5s]
+Writing at 0x00014f40 ======>                         21.8% 64.00kB/293.91kB [7s]
+Writing at 0x0001a045 ========                        27.2% 80.00kB/293.91kB [8s]
+Writing at 0x0001f25b =========>                      32.7% 96.00kB/293.91kB [11s]
+Writing at 0x000245b6 ===========                     38.1% 112.00kB/293.91kB [12s]
+Writing at 0x00029928 =============                   43.6% 128.00kB/293.91kB [15s]
+Writing at 0x0002fb56 ==============>                 49.0% 144.00kB/293.91kB [17s]
+Writing at 0x00035189 ================                54.4% 160.00kB/293.91kB [18s]
+Writing at 0x0003aa32 =================>              59.9% 176.00kB/293.91kB [21s]
+Writing at 0x00040377 ===================>            65.3% 192.00kB/293.91kB [23s]
+Writing at 0x00045767 =====================           70.8% 208.00kB/293.91kB [25s]
+Writing at 0x0004b0f0 ======================>         76.2% 224.00kB/293.91kB [27s]
+Writing at 0x000506c3 ========================        81.7% 240.00kB/293.91kB [29s]
+Writing at 0x00055d83 ==========================      87.1% 256.00kB/293.91kB [31s]
+Writing at 0x0005e12f ===========================>    92.5% 272.00kB/293.91kB [33s]
+Writing at 0x00063afe =============================   98.0% 288.00kB/293.91kB [35s]
+Writing at 0x00100000 ============================== 100.0% 293.91kB/293.91kB [37s]
+Wrote 1048576 bytes (300964 compressed) at 0x00000000 in 83.8 seconds (100.1 kbit/s).
+Verifying written data...
+Hash of data verified.
+
+Staying in bootloader.
+Schreiben und esptool-Datenprüfung erfolgreich. RUN-Modus einschalten, dann Abschlussdiagnose.
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → OK
+AT+UART? → OK
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → OK
+AT+CIPSSLCCONF? → OK
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → OK
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → OK
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → OK
+AT+CIPSTO? → OK
+Prüfe COM22 mit 115200 Baud …
+AT+GMR → OK
+AT+CMD? → ERROR
+AT+UART_CUR? → OK
+AT+UART? → OK
+AT+CWMODE? → OK
+AT+CWMODE_CUR? → OK
+AT+CWAUTOCONN? → OK
+AT+CIPSTA? → OK
+AT+CIPAP? → OK
+AT+CWDHCP? → OK
+AT+CIPSTAMAC? → OK
+AT+CIPSTATUS → OK
+AT+CIPMUX? → OK
+AT+CIPMODE? → OK
+AT+CIPDINFO? → OK
+AT+CIPRECVMODE? → OK
+AT+CIPSSLCCONF? → OK
+AT+CIPSSLSIZE? → OK
+AT+CIPDNS? → ERROR
+AT+CIPSNTPCFG? → OK
+AT+MQTTCONN? → ERROR
+AT+SYSRAM? → OK
+AT+SLEEP? → OK
+AT+RFPOWER? → ERROR
+AT+CIPSERVERMAXCONN? → OK
+AT+CIPSTO? → OK
+Dokumentation gespeichert.

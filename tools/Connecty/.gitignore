@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+results/
+backups/
+firmware/*/
+
+# saved copies of Espressif's ESP-AT documentation: read them online
+*documentation.html
+*documentation_files/

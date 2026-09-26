@@ -1,0 +1,40 @@
+{
+  "checked": "2026-09-26",
+  "entries": [
+    {
+      "id": "esp01-nano-1.7.5", "title": "ESP-01 · NonOS AT 1.7.5 Nano (Legacy)",
+      "chip": "esp8266", "modules": ["ESP-01 / ESP-01S"], "flash_bytes": 1048576,
+      "version": "1.7.5", "recipe": "nano", "uart": {"tx": 1, "rx": 3, "baud": 115200, "flow": "none"},
+      "url": "https://www.espressif.com/sites/default/files/ap/ESP8266_NonOS_AT_Bin_V1.7.5_1.zip",
+      "source": "https://www.espressif.com/en/products/sdks/esp-at/resource",
+      "features": "WLAN und TCP/UDP; Nano-SSL mit begrenzten Cipher Suites. Kein BLE. Native MQTT-/HTTP-Befehle nicht zugesagt.",
+      "note": "Direkt verfügbar für 1 MiB. Abgekündigte Legacy-Firmware, kein moderner Maximal-Build. Gegenüber 1.3.0 neuer; TLS-Kompatibilität muss am Zielserver geprüft werden. Paketlayout stammt aus bin/at/README.md."
+    },
+    {
+      "id": "esp01-rtos-2.3", "title": "ESP-01 · ESP-AT 2.3 / 1 MiB (CI oder Eigenbau)",
+      "chip": "esp8266", "modules": ["ESP-01 / ESP-01S"], "flash_bytes": 1048576,
+      "version": "2.3.0.0", "recipe": "external", "uart": {"tx": 1, "rx": 3, "baud": 115200, "flow": "none"},
+      "source": "https://docs.espressif.com/projects/esp-at/en/release-v2.3.0.0_esp8266/AT_Binary_Lists/ESP8266_AT_binaries.html",
+      "features": "Moderner ESP8266-AT-Zweig. TLS/MQTT und weitere Funktionen hängen vom 1-MiB-Build ab; kein BLE.",
+      "note": "Kein separat veröffentlichtes 1-MiB-Release-ZIP. Espressif verweist auf esp8285-1MB-at im Branch release/v2.3.0.0_esp8266. CI kann Login erfordern oder abgelaufen sein. Passendes Paket mit connecty.json importieren; kein ungeprüfter Download-Ersatz."
+    },
+    {
+      "id": "wroom02-2.3", "title": "ESP-WROOM-02 · ESP-AT 2.3.0.0",
+      "chip": "esp8266", "modules": ["ESP-WROOM-02"], "flash_bytes": 2097152,
+      "version": "2.3.0.0", "recipe": "idf", "uart": {"tx": 15, "rx": 13, "baud": 115200, "flow": "rts", "rts": 1},
+      "url": "https://dl.espressif.com/esp-at/firmwares/esp8266/ESP-WROOM-02-AT-V2.3.0.0.zip",
+      "source": "https://docs.espressif.com/projects/esp-at/en/release-v2.3.0.0_esp8266/AT_Binary_Lists/ESP8266_AT_binaries.html",
+      "features": "WLAN, TCP/UDP, TLS, MQTT; konkrete Build-Optionen werden nach dem Download ausgewertet. Kein BLE.",
+      "note": "2-MiB-Layout. AT-UART auf GPIO15/GPIO13, Flash-UART GPIO1/GPIO3. Nicht für den ESP-01 mit 1 MiB."
+    },
+    {
+      "id": "wroom32-4.1.1", "title": "ESP32-WROOM-32 · ESP-AT 4.1.1.0",
+      "chip": "esp32", "modules": ["ESP32-WROOM-32"], "flash_bytes": 4194304,
+      "version": "4.1.1.0", "recipe": "idf", "uart": {"tx": 17, "rx": 16, "baud": 115200, "flow": "rts", "rts": 14},
+      "url": "https://dl.espressif.com/esp-at/firmwares/esp32/ESP32-WROOM-32/ESP32-WROOM-32-AT-V4.1.1.0.zip",
+      "source": "https://docs.espressif.com/projects/esp-at/en/latest/esp32/AT_Binary_Lists/esp_at_binaries.html",
+      "features": "WLAN, Sockets, TLS und weitere ESP32-AT-Protokolle. Aktivierte MQTT/HTTP/BLE-Optionen aus dem Paket und anschließend per AT ermitteln.",
+      "note": "Direkt verfügbares 4-MiB-Paket. Die neuere 4.2.0.0 wird über ein Espressif-Antragsformular angeboten. AT-UART typischerweise GPIO17/GPIO16; separater USB-UART-Adapter kann nötig sein."
+    }
+  ]
+}
