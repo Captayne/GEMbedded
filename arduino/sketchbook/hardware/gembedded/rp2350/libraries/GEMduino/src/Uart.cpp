@@ -1,36 +1,31 @@
 /*
- * Uart.cpp - UART1 of the RP2350, with the real-time core as its reader
+ * Uart.cpp - the second serial port, by whichever means is available
  *
  * Copyright (C) 2026 Andreas Keibel
  *
- * The port itself is simple: a handful of registers, no interrupts -- a
- * program on this machine cannot take one.  What is not simple is being
- * sure of every character while a desktop, a screen manager and other
- * programs share the processor.
+ * Three ways, and it takes the best one it finds:
  *
- * At 115200 baud a character arrives every 87 us and the hardware holds
- * 32 of them: 2.8 milliseconds of grace.  A GEM program that politely
- * gives the processor away gets it back after the next system tick, some
- * 20 milliseconds later, and by then the port has thrown away what it
- * could not keep.  That is not a theory; it is what the log of the first
- * try looked like, with holes in the middle of lines.
+ *   1. The system driver (the "_UA1" cookie).  The interrupt fills a
+ *      buffer inside pTOS, so a program may take its time and miss
+ *      nothing.  This is the right way, and the one to use.
  *
- * So the reading is done by a cyclic task on the real-time core, every
- * 200 us, which never sleeps and never waits for anything: it empties
- * the port into a ring buffer.  The GEM half reads lines out of the ring
- * at its leisure and may sleep as much as it likes.  This is the same
- * division of labour as the clock example, only here it is a necessity
- * rather than a demonstration.
+ *   2. A cyclic task on the real-time core, which empties the port into a
+ *      ring of ours every 200 us.  For a system without that driver.
+ *      It works, but it spends a task on something the interrupt should
+ *      be doing.
  *
- * Without the kernel -- no "_IRK" cookie -- the port still works: then
- * the reading happens in whatever process asks, and one must not sleep
- * in the middle of an answer.
+ *   3. The registers, read by whoever asks.  Then one must not give the
+ *      processor away in the middle of an answer: at 115200 baud the
+ *      hardware holds 2.8 milliseconds of characters, and a GEM process
+ *      that sleeps is gone for a system tick -- twenty.  That is how the
+ *      first attempt lost the middle of every reply.
  */
 
 #include <string.h>
 #include "GEMduino.h"
 #include "Uart.h"
 #include "irk.h"
+#include "uart1.h"
 #include <mint/osbind.h>
 #include <mint/mintbind.h>
 
@@ -46,11 +41,11 @@
 #define UART1_IMSC      REG(UART1_BASE + 0x38)
 #define UART1_ICR       REG(UART1_BASE + 0x44)
 
-#define FR_RXFE         0x10UL          /* receive FIFO empty */
-#define FR_TXFF         0x20UL          /* transmit FIFO full */
+#define FR_RXFE         0x10UL
+#define FR_TXFF         0x20UL
 
 #define RESETS_BASE     0x40020000UL
-#define RESETS_CLR      REG(RESETS_BASE + 0x3000)    /* the atomic-clear alias */
+#define RESETS_CLR      REG(RESETS_BASE + 0x3000)
 #define RESETS_DONE     REG(RESETS_BASE + 0x08)
 #define RESET_UART1     (1UL << 27)
 
@@ -66,19 +61,14 @@
 #define TX_PIN          4
 #define RX_PIN          5
 
-#define CLK_PERI_HZ     150000000UL     /* what pTOS sets up */
+#define CLK_PERI_HZ     150000000UL
 
-/*
- * The ring the two cores share.  One writer (the task on core 1), one
- * reader (this program): no lock is needed, only the order of the two
- * writes -- the character first, the index afterwards.
- */
+/* the ring the task on the other core fills (way 2) */
 #define RING_SIZE       2048
 static volatile unsigned char ring[RING_SIZE];
-static volatile unsigned short ring_head;   /* written by core 1 */
-static volatile unsigned short ring_tail;   /* written by us */
+static volatile unsigned short ring_head;   /* the other core writes this */
+static volatile unsigned short ring_tail;   /* and we write this */
 
-/* Runs on the real-time core, every 200 us: empty the port. */
 static void uart_feeder(void *arg)
 {
     (void)arg;
@@ -98,36 +88,50 @@ static void uart_feeder(void *arg)
 
 Uart Serial1;
 
-void Uart::begin(unsigned long baud)
+/* the port itself, for ways 2 and 3 */
+static void raw_setup(unsigned long baud)
 {
     unsigned long baud16 = baud * 16;
     unsigned long intdiv = CLK_PERI_HZ / baud16;
     unsigned long frac2 = (CLK_PERI_HZ % baud16) * 8 / baud;
     unsigned long frac = frac2 / 2 + frac2 % 2;
-    long value = 0;
 
-    /* pTOS only takes UART0 out of reset; this one is still asleep */
-    RESETS_CLR = RESET_UART1;
+    RESETS_CLR = RESET_UART1;           /* pTOS only wakes UART0 */
     while (!(RESETS_DONE & RESET_UART1))
         ;
 
     UART1_CR = 0;
-    UART1_IMSC = 0;                     /* no interrupts: we are polled */
+    UART1_IMSC = 0;
     UART1_ICR = 0x7ff;
     UART1_IBRD = intdiv;
     UART1_FBRD = frac;
     UART1_LCRH = (3 << 5) | (1 << 4);   /* 8 bits, no parity, FIFOs on */
     UART1_CR = 0x301;                   /* UARTEN | TXE | RXE */
 
-    /* the two pins: out of their reset latch, then handed to the UART */
     PAD(TX_PIN) = (PAD(TX_PIN) & ~(PAD_ISO | PAD_OD)) | PAD_IE;
     PAD(RX_PIN) = (PAD(RX_PIN) & ~(PAD_ISO | PAD_OD)) | PAD_IE;
     GPIO_CTRL(TX_PIN) = FUNC_UART;
     GPIO_CTRL(RX_PIN) = FUNC_UART;
+}
 
+void Uart::begin(unsigned long baud)
+{
+    long value = 0;
+
+    /* 1: the system's own driver */
+    if (Ssystem(S_GETCOOKIE, UA1_COOKIE, (long)&value) == 0 && value)
+    {
+        drv = (struct ua1_api *)value;
+        if (drv->version >= UA1_VERSION && drv->open(baud) == 0)
+            return;
+        drv = 0;
+    }
+
+    /* 2 and 3 need the port set up here */
+    raw_setup(baud);
     ring_head = ring_tail = 0;
 
-    /* and the reader on the other core, if there is one */
+    value = 0;
     if (Ssystem(S_GETCOOKIE, IRK_COOKIE, (long)&value) == 0 && value)
         k = (struct irk_api *)value;
     if (k && k->cores() > 1)
@@ -135,7 +139,7 @@ void Uart::begin(unsigned long baud)
         feeder = k->task_new(IRK_CORE_RT, uart_feeder, 0, 200, 0, 1024, 0);
         if (feeder != IRK_NONE)
         {
-            k->set_cyclic(feeder, 200, 0);   /* every 200 us */
+            k->set_cyclic(feeder, 200, 0);      /* every 200 us */
             k->task_resume(feeder);
         }
         else
@@ -147,6 +151,12 @@ void Uart::begin(unsigned long baud)
 
 void Uart::end(void)
 {
+    if (drv)
+    {
+        drv->close();
+        drv = 0;
+        return;
+    }
     if (k && feeder != IRK_NONE)
     {
         k->task_kill(feeder);
@@ -157,32 +167,43 @@ void Uart::end(void)
 
 int Uart::available(void)
 {
-    if (!k)
-        return (UART1_FR & FR_RXFE) ? 0 : 1;
-    return ring_head != ring_tail;
+    if (drv)
+        return drv->status() > 0;
+    if (k)
+        return ring_head != ring_tail;
+    return (UART1_FR & FR_RXFE) ? 0 : 1;
 }
 
 int Uart::read(void)
 {
-    if (!k)
+    if (drv)
     {
-        if (UART1_FR & FR_RXFE)
-            return -1;
-        return (int)(UART1_DR & 0xff);
+        unsigned char c;
+
+        return (drv->read(&c, 1) == 1) ? (int)c : -1;
     }
-
-    if (ring_head == ring_tail)
-        return -1;
+    if (k)
     {
-        unsigned char c = ring[ring_tail];
+        unsigned char c;
 
+        if (ring_head == ring_tail)
+            return -1;
+        c = ring[ring_tail];
         ring_tail = (unsigned short)((ring_tail + 1) % RING_SIZE);
         return (int)c;
     }
+    if (UART1_FR & FR_RXFE)
+        return -1;
+    return (int)(UART1_DR & 0xff);
 }
 
 void Uart::write(unsigned char c)
 {
+    if (drv)
+    {
+        drv->write(&c, 1);
+        return;
+    }
     while (UART1_FR & FR_TXFF)
         ;
     UART1_DR = c;
@@ -190,29 +211,44 @@ void Uart::write(unsigned char c)
 
 void Uart::write(const char *s)
 {
-    while (*s)
-        write((unsigned char)*s++);
+    write(s, (unsigned long)strlen(s));
 }
 
 void Uart::write(const void *data, unsigned long len)
 {
     const unsigned char *p = (const unsigned char *)data;
 
+    if (drv)
+    {
+        drv->write(data, (long)len);
+        return;
+    }
     while (len--)
         write(*p++);
 }
 
 void Uart::flushInput(void)
 {
+    if (drv)
+    {
+        drv->flush();
+        return;
+    }
     while (read() >= 0)
         ;
 }
 
+/* Characters that arrived with nowhere to go -- only the driver counts them. */
+long Uart::lost(void)
+{
+    return drv ? drv->lost() : 0;
+}
+
 /*
  * A line, with a deadline.  Whether it is safe to sleep while waiting
- * depends on who is reading the port: with the task on the other core,
- * nothing is lost while this process sleeps.  Without it, sleeping would
- * cost characters, so it spins instead.
+ * depends on who is doing the listening: with the driver or with the task
+ * on the other core, nothing is lost while this process sleeps.  Reading
+ * the registers ourselves, sleeping would cost characters, so it spins.
  */
 int Uart::readLine(char *buf, int size, unsigned long timeout_ms)
 {
@@ -227,11 +263,11 @@ int Uart::readLine(char *buf, int size, unsigned long timeout_ms)
         {
             if (millis() - start >= timeout_ms)
             {
-                buf[n] = '\0';          /* always terminated, even half a line */
+                buf[n] = '\0';          /* terminated even when cut short */
                 return (n > 0) ? n : -1;
             }
-            if (k)
-                delay(1);               /* the other core keeps listening */
+            if (drv || k)
+                delay(1);               /* somebody else is listening */
             continue;
         }
         if (c == '\r')

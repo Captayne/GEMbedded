@@ -19,6 +19,7 @@
 #define GEMDUINO_UART_H
 
 struct irk_api;
+struct ua1_api;
 
 class Uart
 {
@@ -43,9 +44,13 @@ public:
      */
     int  readLine(char *buf, int size, unsigned long timeout_ms);
 
+    /* characters that arrived with nowhere to go (the driver counts) */
+    long lost(void);
+
 private:
-    /* the kernel, when it is there: then a cyclic task on the other core
-       does the reading and this process may sleep while it waits */
+    /* whichever does the listening: the system's driver, or a cyclic task
+       on the other core, or nobody and we read the registers ourselves */
+    struct ua1_api *drv = 0;
     struct irk_api *k = 0;
     unsigned short feeder = 0;
 };

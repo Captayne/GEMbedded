@@ -188,6 +188,7 @@ static void set_clock(const AtTime *t)
 
 static const char *ssid = "";
 static const char *key = "";
+static short utc_offset = 1;
 
 static bool find_settings(void)
 {
@@ -199,6 +200,8 @@ static bool find_settings(void)
     w = (struct wif_api *)value;
     ssid = w->ssid();
     key = w->key();
+    if (w->version >= 2)
+        utc_offset = w->utc_offset();   /* as entered under Connecty */
     return ssid[0] != '\0';
 }
 
@@ -286,7 +289,7 @@ static bool ask_time(const char *server, short seconds)
     short tries;
 
     say(server);
-    if (!Esp.startTime(1, server))      /* whole hours from UTC */
+    if (!Esp.startTime(utc_offset, server))
     {
         say("SNTP was refused. It said:");
         show_reply();
