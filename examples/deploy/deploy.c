@@ -40,8 +40,9 @@
 #include "usbcon.h"
 #include "gem.h"
 
-#define DEST_DRIVE      "F:\\"        /* programs */
-#define ACC_DRIVE       "C:\\"        /* accessories: the boot drive */
+/* the boot drive: accessories must be there to be loaded, and programs
+   are better off there too -- see the top of this file */
+#define DEST_DRIVE      "C:\\"
 #define CMDTAILSIZE     128             /* what GEM hands a program */
 #define CHUNK           512
 #define TIMEOUT_TICKS   1000            /* 5 s, in 200 Hz ticks */
@@ -195,10 +196,7 @@ static int transfer(void)
         return 0;
     }
 
-    /* An accessory only counts when it is on the boot drive, so that is
-       where it goes -- upload, restart, and it is loaded. */
-    strcpy(path, (namelen > 4 && strcmp(name + namelen - 4, ".ACC") == 0)
-                 ? ACC_DRIVE : DEST_DRIVE);
+    strcpy(path, DEST_DRIVE);
     strcat(path, name);
     show(path);
 
@@ -351,8 +349,7 @@ static void acc_main(void)
             ucn->set_raw(listening);
             set_title();
             form_alert(1, listening
-                ? "[0][Deploy is listening.|Programs land on F:,"
-                  "|accessories on C:.][ OK ]"
+                ? "[0][Deploy is listening.|Everything lands on C:.][ OK ]"
                 : "[0][Deploy is off.|The USB console is the"
                   "|keyboard again.][ OK ]");
         }
