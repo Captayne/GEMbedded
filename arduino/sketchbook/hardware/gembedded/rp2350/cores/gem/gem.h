@@ -154,6 +154,33 @@ short wind_calc(short type, short kind, short x, short y, short w, short h,
 #define MD_TRANS        2
 #define FIS_SOLID       1
 
+/*
+ * A bitmap, for vro_cpyfm().  fd_addr is the pixels, or 0 for the screen.
+ * fd_wdwidth is the width in words, not bytes, and is what a line of the
+ * bitmap is long -- so a 16 bits per pixel bitmap has fd_wdwidth == fd_w.
+ * fd_stand 0 says the pixels are already in the screen's own format,
+ * which is what you want: the standard format exists to carry a bitmap
+ * between machines, and converting costs a copy.
+ */
+typedef struct
+{
+    void  *fd_addr;
+    short  fd_w, fd_h;
+    short  fd_wdwidth;
+    short  fd_stand;
+    short  fd_nplanes;
+    short  fd_r1, fd_r2, fd_r3;
+} MFDB;
+
+/* the logic operations vro_cpyfm() can apply; S is source, D destination */
+#define ALL_WHITE       0
+#define S_AND_D         1
+#define S_ONLY          3       /* plain copy */
+#define NOT_S_AND_D     4
+#define S_XOR_D         6
+#define S_OR_D          7
+#define ALL_BLACK       15
+
 short v_opnvwk(short phys_handle);      /* returns the new handle, 0 on error */
 void v_clsvwk(short handle);
 void vs_clip(short handle, short on, const short *xyxy);
@@ -165,6 +192,16 @@ void vst_color(short handle, short color);
 void v_pline(short handle, short count, const short *xy);
 void vr_recfl(short handle, const short *xyxy);
 void v_gtext(short handle, short x, short y, const char *s);
+
+/*
+ * Copy a rectangle from one bitmap to another: eight coordinates, the
+ * source rectangle then the destination one, each as two corners.  Either
+ * MFDB may be the screen (fd_addr 0), so this is how a picture a program
+ * computed itself gets into a window -- and the only way that does not
+ * cost a VDI call per pixel.
+ */
+void vro_cpyfm(short handle, short mode, const short *xyxy8,
+               const MFDB *src, const MFDB *dst);
 
 
 #ifdef __cplusplus

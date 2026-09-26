@@ -319,7 +319,14 @@ short wind_calc(short type, short kind, short x, short y, short w, short h,
 
 /* ---- VDI ---- */
 
-static short contrl[12];
+/*
+ * Four-byte aligned because two of its words are not words: on this port
+ * contrl[] is the VDICONTROL structure of pTOS's include/vdipb.h -- seven
+ * words, a pad, and then two native pointers, at words 8 and 10.  That is
+ * where the MFDBs of a raster copy go, whole, not split into halves as on
+ * the Atari.
+ */
+static short contrl[12] __attribute__((aligned(4)));
 static short intin[128];
 static short ptsin[128];
 static short intout[128];
@@ -408,4 +415,20 @@ void v_gtext(short handle, short x, short y, const char *s)
     ptsin[0] = x;
     ptsin[1] = y;
     vdi(handle, 8, 1, n);
+}
+
+void vro_cpyfm(short handle, short mode, const short *xyxy8,
+               const MFDB *src, const MFDB *dst)
+{
+    int i;
+
+    for (i = 0; i < 8; i++)
+        ptsin[i] = xyxy8[i];
+    intin[0] = mode;
+    /* copied in rather than assigned through a cast: a pointer written
+       through a short * is exactly what strict aliasing forbids, and the
+       builtin becomes the single store it looks like */
+    __builtin_memcpy(&contrl[8], &src, sizeof src);
+    __builtin_memcpy(&contrl[10], &dst, sizeof dst);
+    vdi(handle, 109, 4, 1);
 }
