@@ -75,6 +75,9 @@ typedef struct
 #define SHW_NOEXEC      0       /* shel_write(): back to the desktop */
 #define SHW_EXEC        1       /* ... run this program next */
 
+#define FMD_START       0               /* form_dial() */
+#define FMD_GROW        1
+#define FMD_SHRINK      2
 #define FMD_FINISH      3
 
 #define M_OFF           256
@@ -403,6 +406,13 @@ void vst_alignment(short handle, short hin, short vin,
  * having before laying anything out: a font's characters are not all
  * eight pixels wide, and code that assumes they are lays out correctly
  * only by accident.
+ *
+ * The corners are the string's own size anchored at (0,0), not an offset
+ * from where it would be drawn: (0,0), (w,0), (w,h), (0,h).  So they go
+ * beside the *top left* of the text, and v_gtext() puts its y on the
+ * baseline unless vst_alignment() has been told otherwise.  Adding the
+ * extent to a baseline y drops the box a whole line -- ask for TA_TOP
+ * first, or subtract the height.
  */
 void vqt_extent(short handle, const char *s, short *extent);
 

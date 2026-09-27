@@ -319,14 +319,23 @@ static void page_text(void)
         { TF_OUTLINED,    "outlined" },
         { TF_SHADOWED,    "shadowed" }
     };
-    short i;
+    short i, hout, vout;
 
     say("vst_effects, and vqt_extent as a box");
+
+    /*
+     * vqt_extent gives the string's size anchored at (0,0), not an offset
+     * from where it will be drawn -- and v_gtext puts its y on the
+     * baseline.  Adding one to the other drops the box a whole line, so
+     * ask for the top-left as the alignment point and the two agree.
+     * Which also puts vst_alignment through its paces.
+     */
+    vst_alignment(vdi, TA_LEFT, TA_TOP, &hout, &vout);
 
     for (i = 0; i < (short)(sizeof(fx) / sizeof(fx[0])); i++)
     {
         short extent[8], box[10];
-        short y = (short)(wy + hchar * (i + 3));
+        short y = (short)(wy + hchar + 6 + i * (hchar + 6));
 
         vst_effects(vdi, fx[i].effect);
         vst_color(vdi, BLACK);
@@ -334,9 +343,9 @@ static void page_text(void)
 
         /*
          * The box vqt_extent says the string occupies.  It is measured
-         * with the effect in force, so a thickened string should come out
-         * wider than a plain one -- and the frame should sit on the text,
-         * not beside it.
+         * with the effect in force, so a thickened string comes out wider
+         * than a plain one -- and with the alignment set above, the frame
+         * sits on the text rather than below it.
          */
         vqt_extent(vdi, fx[i].name, extent);
         box[0] = (short)(wx + 20 + extent[0]);
@@ -353,6 +362,7 @@ static void page_text(void)
         v_pline(vdi, 5, box);
     }
     vst_effects(vdi, 0);
+    vst_alignment(vdi, TA_LEFT, TA_BASELINE, &hout, &vout);
 }
 
 /* ---- page 4: the raster copies -------------------------------------- */
