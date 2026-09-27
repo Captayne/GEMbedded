@@ -6,7 +6,7 @@ It writes the file to F:\\ and, when it is set to, runs it.
 
     ptosdeploy.py [-p COM20] [-n NAME.PRG] [--no-run] FILE
 
-The wire format is described in examples/deploy/deploy.c.
+The wire format is described in GEM/examples/deploy/deploy.c.
 """
 
 import argparse

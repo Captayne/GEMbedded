@@ -4,7 +4,7 @@ pTOS/
 *.o
 # except the TOS start-up object a sketch links against: it belongs to
 # the board package, and building it needs the whole pTOS build
-!arduino/sketchbook/hardware/gembedded/rp2350/lib/minicrt0.o
+!GEMduino/sketchbook/hardware/gembedded/rp2350/lib/minicrt0.o
 *.elf
 *.map
 *.uf2
@@ -41,9 +41,22 @@ WhatsApp*
 ffmpeg2pass-*
 
 # fetched by tools/get-toolchain.py, not kept in the repository
-arduino/toolchain/
+GEMduino/toolchain/
 
 __pycache__/
 *.pyc
 Emulators/
 docs/*.pdf
+
+# Highwire: a copy of somebody else's browser, kept here to work from.
+# It is not ours to redistribute, and the port is not announced yet.
+GEM/Highwire-Browser.github.io-main/
+GEM/*.url
+
+# Raw camera output: phone videos and photographs straight off the device,
+# which are tens of megabytes each and would weigh a hundred times what all
+# the source in here does.  Curated stills live in docs/images/ or beside
+# the README that uses them; the originals stay on the camera.
+*.mp4
+*.mov
+20[0-9][0-9][01][0-9][0-3][0-9]_*

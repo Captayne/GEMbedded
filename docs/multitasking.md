@@ -164,7 +164,7 @@ A new mode beside it -- start as a task, return at once -- is the
 compatible way; MiNT extended the mode range for its own purposes in the
 same fashion.
 
-The first visible gain is already waiting: `examples/deploy` calls
+The first visible gain is already waiting: `GEM/examples/deploy` calls
 `Pexec(0, ...)` and is dead for as long as the deployed program runs.
 With the new mode the deploy terminal stays alive, and a second deploy
 can follow while the first program is still running.  Small demonstration,

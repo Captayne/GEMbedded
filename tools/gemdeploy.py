@@ -15,7 +15,7 @@ opened through termios on Linux and macOS and through the Windows API on
 Windows.  That matters because this is what the Arduino IDE calls when
 someone presses Upload, and nobody should have to install anything first.
 
-The transfer (see examples/deploy/deploy.c):
+The transfer (see GEM/examples/deploy/deploy.c):
 
      "PTUP1"   5 bytes
      flags     2 bytes         bit 0: please run it

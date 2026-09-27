@@ -1,12 +1,12 @@
-# Makefile - touch screen calibration (desk accessory TOUCHCAL.ACC)
+# Makefile - DEPLOY.PRG, receives programs over the USB console
 #
-# Uses the libcmini that the pTOS build produces.  TOUCHCAL.ACC goes into
-# the root directory of the boot drive (C:) on the SD card; renamed to
-# TOUCHCAL.PRG it runs as a program too.
+# Uses the libcmini that the pTOS build produces.  DEPLOY.PRG belongs on
+# the flash drive (F:) or the SD card; it must be running for
+# tools/ptosdeploy.py to be able to send anything.
 
-PTOS     ?= ../../pTOS
+PTOS     ?= ../../../pTOS
 LIBCMINI  = $(PTOS)/obj/libcmini-build
-LIB       = ../../GEMduino/sketchbook/hardware/gembedded/rp2350/cores/gem
+LIB       = ../../../GEMduino/sketchbook/hardware/gembedded/rp2350/cores/gem
 
 CC       = arm-none-eabi-gcc
 CPUFLAGS = -mcpu=cortex-m33 -mthumb -mfloat-abi=softfp -mfpu=fpv5-sp-d16
@@ -15,11 +15,11 @@ CFLAGS   = $(CPUFLAGS) -O2 -g -Wall -mword-relocations \
 LDFLAGS  = $(CPUFLAGS) -nostartfiles -nostdlib \
            -Wl,-q -Wl,-Ttext=0 -Wl,-e_start
 
-OBJS = accstart.o touchcal.o gem.o
+OBJS = accstart.o deploy.o gem.o
 
-all: TOUCHCAL.ACC
+all: DEPLOY.PRG DEPLOY.ACC
 
-TOUCHCAL.ACC: $(OBJS)
+DEPLOY.PRG: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -L$(LIBCMINI) -lcmini -lgcc -o $@
 
 accstart.o: $(LIB)/accstart.S
@@ -28,10 +28,14 @@ accstart.o: $(LIB)/accstart.S
 gem.o: $(LIB)/gem.c $(LIB)/gem.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-touchcal.o: touchcal.c $(PTOS)/include/touch.h $(LIB)/gem.h
+deploy.o: deploy.c $(PTOS)/include/usbcon.h $(LIB)/gem.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# The same file twice: the basepage tells it which it is.
+DEPLOY.ACC: DEPLOY.PRG
+	cp $< $@
+
 clean:
-	rm -f *.o TOUCHCAL.ACC
+	rm -f *.o DEPLOY.PRG DEPLOY.ACC
 
 .PHONY: all clean

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""get-toolchain.py - fetch the ARM compiler into arduino/toolchain
+"""get-toolchain.py - fetch the ARM compiler into GEMduino/toolchain
 
 GEMbedded is meant to be portable: everything it needs lives in this
 folder and nothing is installed anywhere else.  The one piece too big for
@@ -99,7 +99,7 @@ def unpack(path, into):
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
-    into = os.path.join(root, "arduino", "toolchain")
+    into = os.path.join(root, "GEMduino", "toolchain")
 
     ap = argparse.ArgumentParser(description=__doc__,
              formatter_class=argparse.RawDescriptionHelpFormatter)
