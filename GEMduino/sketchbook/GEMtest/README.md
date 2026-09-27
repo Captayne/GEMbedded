@@ -36,7 +36,7 @@ GEMtest participates through normal AES event handling: its
 `evnt_multi_button_timer(1000, ...)` waits for a button event, a window
 message or a one-second timeout. The timer does not advance pages.
 
-In the [AES dispatcher](../../../pTOS/aes/gemdisp.c), waiting processes block
+In the [AES dispatcher](https://github.com/Captayne/pTOS/blob/gembedded/aes/gemdisp.c), waiting processes block
 through `k_block()`, runnable processes yield through `k_yield()`, and events
 make processes runnable through `k_wake()`. IRKernel decides what runs next.
 Scheduling is cooperative: a long computation without yielding or blocking
