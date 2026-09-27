@@ -44,7 +44,13 @@ compiler.warning_flags.default=-Wall
 compiler.warning_flags.more=-Wall -Wextra
 compiler.warning_flags.all=-Wall -Wextra -Wpedantic
 
-compiler.includes=-I{gembedded.ptos}/lib/libcmini/include -iquote {gembedded.ptos}/include -iquote {build.core.path}
+# The first one has to stay first.  cores/gem/compat holds a single
+# sys/cdefs.h, and it is there so that a sketch written as one .ino --
+# which is compiled as C++ -- can include <math.h> without the build
+# collapsing inside the toolchain's own headers.  The file says why in
+# full; the short version is that C++ reaches newlib's stdlib.h behind
+# libcmini's back, and the two disagree about what sys/cdefs.h holds.
+compiler.includes=-I{build.core.path}/compat -I{gembedded.ptos}/lib/libcmini/include -iquote {gembedded.ptos}/include -iquote {build.core.path}
 compiler.common=-O2 -g -mword-relocations -ffunction-sections -fdata-sections {compiler.includes}
 
 compiler.c.cmd={compiler.prefix}gcc
