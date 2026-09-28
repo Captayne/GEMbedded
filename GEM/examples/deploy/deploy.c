@@ -44,8 +44,21 @@
    are better off there too -- see the top of this file */
 #define DEST_DRIVE      "C:\\"
 #define CMDTAILSIZE     128             /* what GEM hands a program */
-#define CHUNK           512
-#define TIMEOUT_TICKS   1000            /* 5 s, in 200 Hz ticks */
+/*
+ * Four kilobytes, not half of one.  Every chunk is a separate Fwrite
+ * to the card, and a 700 KB program in 512-byte pieces is 1400 of
+ * them -- each one a read-modify-write of a 32 KB FAT cluster.  The
+ * transfer then takes long enough that the sending side gives up.
+ */
+#define CHUNK           4096
+/*
+ * How long to wait for the next byte before calling it off.  Five
+ * seconds was not enough: the other side writes into a driver buffer
+ * and the data arrives in bursts, so a gap says nothing about whether
+ * the sender is still there.  Thirty seconds costs nothing when all
+ * is well and saves a transfer that is merely slow.
+ */
+#define TIMEOUT_TICKS   6000            /* 30 s, in 200 Hz ticks */
 
 static struct ucn_api *ucn;
 static char name[64];
@@ -71,7 +84,7 @@ static void set_obj(short i, short next, short head, short tail, unsigned short 
     o->ob_type = type;
     o->ob_flags = 0;
     o->ob_state = 0;
-    o->ob_spec = spec;
+    o->ob_spec.index = spec;    /* ob_spec is a union; see gem.h */
     o->ob_x = x;
     o->ob_y = y;
     o->ob_width = w;
@@ -215,13 +228,22 @@ static int transfer(void)
             n = CHUNK;
         if (recv(buf, n) < 0)
         {
+            /*
+             * Delete what was written.  Without this the half of a
+             * program that did arrive stays on the drive looking like a
+             * whole one, and the next person to run it gets "invalid
+             * program format" from a loader that read past the end of
+             * the file -- which says nothing about the real cause.
+             */
             Fclose((short)fh);
+            Fdelete(path);
             reply("- transfer broke off");
             return 0;
         }
         if (Fwrite((short)fh, n, buf) != n)
         {
             Fclose((short)fh);
+            Fdelete(path);
             reply("- cannot write (disk full?)");
             return 0;
         }
@@ -267,7 +289,17 @@ static int poll_console(void)
             match = 0;
             show("Receiving...");
             if (transfer())
+            {
+                /*
+                 * Give the port back before the program starts, so that
+                 * whatever runs next can be typed at.  The console takes
+                 * the next transfer over by itself when it sees the
+                 * header again -- see rp2350_usbcon.c's rx_drain().
+                 */
+                ucn->set_raw(0);
                 return 1;
+            }
+            ucn->set_raw(0);
             show("Waiting for an upload...");
         }
         else
@@ -335,7 +367,19 @@ static void acc_main(void)
             evnt_multi_mesag_timer(1000, msg);
     }
 
-    ucn->set_raw(1);            /* ours for good: nobody else listens */
+    /*
+     * The console stays a keyboard.  This used to take raw mode at
+     * start-up and keep it -- "ours for good" -- which on a machine whose
+     * only keyboard is the USB port meant there was no way to type from
+     * the moment the accessory loaded.
+     *
+     * It does not need to hold the port to hear an upload coming: every
+     * transfer opens with "PTUP1", and the console watches for that
+     * itself and switches to raw mode when it arrives (rp2350_usbcon.c,
+     * rx_drain()).  The five bytes are in the ring afterwards, so
+     * poll_console() below still finds the header it is looking for.
+     */
+    ucn->set_raw(0);
     strcpy(status, "Waiting for an upload...");
 
     for (;;)
@@ -346,13 +390,21 @@ static void acc_main(void)
         if ((ev & MU_MESAG) && msg[0] == AC_OPEN && msg[4] == menu_id)
         {
             listening = !listening;
-            ucn->set_raw(listening);
             set_title();
             form_alert(1, listening
                 ? "[0][Deploy is listening.|Everything lands on C:.][ OK ]"
-                : "[0][Deploy is off.|The USB console is the"
-                  "|keyboard again.][ OK ]");
+                : "[0][Deploy is off.|Uploads are ignored|"
+                  "until you switch it back on.][ OK ]");
         }
+
+        /*
+         * Switched off, but the console handed the port over anyway: it
+         * recognises a header whoever is listening.  Take it back to
+         * keyboard mode, or the bytes pile up in the ring with nobody to
+         * read them and the keyboard stays dead.
+         */
+        if (!listening && ucn->status() > 0)
+            ucn->set_raw(0);
 
         if (listening && poll_console())
         {
@@ -411,7 +463,9 @@ static void app_main(BASEPAGE *bp)
     show("Waiting for an upload...");
     graf_mouse(M_ON, 0);
 
-    ucn->set_raw(1);
+    /* as above: the console keeps the keyboard and hands the port over
+     * by itself when a header arrives */
+    ucn->set_raw(0);
 
     for (;;)
     {

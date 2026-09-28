@@ -19,11 +19,51 @@ extern "C" {
 
 /* ---- objects ---- */
 
+struct _tedinfo;                /* below, or in the program's own header */
+
+/*
+ * What an object's ob_spec points at, which depends on what the object
+ * is.  A union rather than a long, because that is what it is: pTOS
+ * declares it the same way (include/obdefs.h), and a program that builds
+ * a dialogue writes o->ob_spec.free_string rather than casting a pointer
+ * to long and hoping.
+ *
+ * Only the members a program on this machine can use are here.  The rest
+ * of GEM's object kinds -- icons, colour icons, bit blocks -- are not
+ * drawn by this VDI yet, so naming them would promise something.
+ */
+/*
+ * The other way to read those four bytes: a box's colours, its pattern
+ * and the character in it, packed as bitfields.  pTOS calls this
+ * bfobspec (include/obdefs.h) and lays it out by byte order; this
+ * machine is little-endian, so there is only the one arrangement here.
+ */
+typedef struct
+{
+    unsigned interiorcol :  4;
+    unsigned fillpattern :  3;
+    unsigned textmode    :  1;
+    unsigned textcol     :  4;
+    unsigned framecol    :  4;
+    signed   framesize   :  8;
+    unsigned character   :  8;
+} BFOBSPEC;
+
+typedef union
+{
+    long            index;
+    char           *free_string;
+    const char     *const_free_string;
+    BFOBSPEC        obspec;
+    struct _tedinfo *tedinfo;
+    void           *userblk;
+} OBSPEC;
+
 typedef struct
 {
     short ob_next, ob_head, ob_tail;
     unsigned short ob_type, ob_flags, ob_state;
-    long ob_spec;
+    OBSPEC ob_spec;
     short ob_x, ob_y, ob_width, ob_height;
 } OBJECT;
 
