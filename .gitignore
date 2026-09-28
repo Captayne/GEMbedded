@@ -52,6 +52,9 @@ docs/*.pdf
 # It is not ours to redistribute, and the port is not announced yet.
 GEM/Highwire-Browser.github.io-main/
 GEM/*.url
+GEM/highwire/
+GEM/highwire-*/
+GEM/netsurf/
 
 # Raw camera output: phone videos and photographs straight off the device,
 # which are tens of megabytes each and would weigh a hundred times what all
@@ -60,3 +63,19 @@ GEM/*.url
 *.mp4
 *.mov
 20[0-9][0-9][01][0-9][0-3][0-9]_*
+
+# Photographs and screen recordings kept for later write-ups: tens of
+# megabytes each, and some of it is not ours to redistribute.
+GEM/Docs/
+
+# What a debugging session leaves behind: console captures, framebuffer
+# dumps, and the screenshots made from them.  tools/gemview.py writes
+# into shots/ by default, and card-backup/ is whatever was rescued off an
+# SD card before reformatting it.
+*.log
+fb-dump.txt
+shots/
+card-backup/
+gem-*.png
+hw-*.png
+hw-*.log

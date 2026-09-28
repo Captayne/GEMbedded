@@ -147,6 +147,24 @@ class PosixPort:
     def flush_input(self):
         self.termios.tcflush(self.fd, self.termios.TCIFLUSH)
 
+    def set_baud(self, baud):
+        """Change the speed on an open port.
+
+        The speed is how a request is made of this machine, not how fast
+        the line runs: 1200 asks for BOOTSEL, 1201 for a screenshot.  The
+        port has to stay open across it, so gemflash's trick of opening
+        at the speed it wants does not serve here.
+
+        Only the speeds termios has a constant for.  1201 is not one of
+        them on Linux, which needs termios2 and an ioctl; whoever wants
+        this there can add it."""
+        speed = getattr(self.termios, "B%d" % baud, None)
+        if speed is None:
+            raise OSError("no termios constant for %d baud" % baud)
+        a = self.termios.tcgetattr(self.fd)
+        a[4] = a[5] = speed
+        self.termios.tcsetattr(self.fd, self.termios.TCSANOW, a)
+
     def write(self, data):
         while data:
             n = os.write(self.fd, data)
@@ -194,6 +212,8 @@ class WindowsPort:
                         ("WriteTotalTimeoutMultiplier", wintypes.DWORD),
                         ("WriteTotalTimeoutConstant", wintypes.DWORD)]
 
+        self.DCB = DCB                  # set_baud() needs it again later
+
         self.handle = self.k32.CreateFileW(r"\\.\%s" % name,
                                            0xC0000000,      # read | write
                                            0, None,
@@ -225,6 +245,25 @@ class WindowsPort:
 
     def flush_input(self):
         self.k32.PurgeComm(self.handle, 0x0008)     # PURGE_RXCLEAR
+
+    def set_baud(self, baud):
+        """Change the speed on an open port.
+
+        The speed is how a request is made of this machine rather than
+        how fast the line runs: 1200 asks for BOOTSEL, 1201 for a
+        screenshot.  gemflash opens the port at the speed it wants, which
+        works when the port is then thrown away; this is for asking
+        without losing what is already buffered, and without Windows
+        refusing a second handle on a port that is open."""
+        dcb = self.DCB()
+        dcb.DCBlength = self.ctypes.sizeof(self.DCB)
+        if not self.k32.GetCommState(self.handle, self.ctypes.byref(dcb)):
+            raise OSError("GetCommState failed (%d)"
+                          % self.ctypes.get_last_error())
+        dcb.BaudRate = baud
+        if not self.k32.SetCommState(self.handle, self.ctypes.byref(dcb)):
+            raise OSError("SetCommState failed (%d)"
+                          % self.ctypes.get_last_error())
 
     def write(self, data):
         written = self.wintypes.DWORD(0)
@@ -304,7 +343,11 @@ def send(port, path, name, run, quiet=False):
 
     # The console carries the machine's own messages as well, so wait for
     # the line that is an answer: "+ ..." or "- ...".
-    line, deadline = b"", time.time() + 10.0
+    # The machine still has to finish writing to the card and check the
+    # sum over everything it received, and both take longer the bigger
+    # the file is.  Ten seconds flat was enough for a 50 KB accessory
+    # and not for a 700 KB program.
+    line, deadline = b"", time.time() + 15.0 + len(data) / 20000.0
     while time.time() < deadline:
         c = port.read(1)
         if not c:
