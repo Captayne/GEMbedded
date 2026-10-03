@@ -187,7 +187,14 @@ short evnt_multi_button_timer(unsigned long ms, short *mx, short *my,
 
     for (i = 0; i < 16; i++)
         int_in[i] = 0;
-    int_in[0] = MU_BUTTON | MU_TIMER | MU_MESAG;
+    /*
+     * MU_KEYBD belongs here. This takes a 'key' and a 'kstate' to write
+     * into, which are of no use to anybody unless keys are among the
+     * events asked for -- and they were not, so a sketch waiting on this
+     * never saw one. The signature promised something the mask did not
+     * request.
+     */
+    int_in[0] = MU_KEYBD | MU_BUTTON | MU_TIMER | MU_MESAG;
     int_in[1] = 1;                      /* clicks */
     int_in[2] = 1;                      /* button mask: left */
     int_in[3] = 1;                      /* wanted state: pressed */
