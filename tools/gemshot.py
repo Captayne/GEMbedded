@@ -25,6 +25,9 @@ def main():
     ap.add_argument("-p", "--port", help="serial port (found by itself)")
     ap.add_argument("-o", "--out", default="gemshot.png")
     ap.add_argument("-t", "--timeout", type=float, default=8.0)
+    ap.add_argument("-c", "--crop", help="x,y,w,h of the part to keep")
+    ap.add_argument("-z", "--zoom", type=int, default=1,
+                    help="repeat each pixel N times, to read small text")
     a = ap.parse_args()
 
     m = gemview.Machine(a.port)
@@ -33,6 +36,19 @@ def main():
     finally:
         m.close()
 
+    # rows are lists of (r,g,b) tuples -- see gemview.rgb565_to_rgb()
+    if a.crop:
+        x, y, w, h = (int(v) for v in a.crop.split(","))
+        rows = [r[x : x+w] for r in rows[y : y+h]]
+    if a.zoom > 1:
+        z = a.zoom
+        wide = []
+        for r in rows:
+            line = [px for px in r for _ in range(z)]
+            wide.extend([line] * z)
+        rows = wide
+
+    gemview.W, gemview.H = len(rows[0]), len(rows)
     gemview.write_png(a.out, rows)
     print("%s  %d bytes" % (a.out, os.path.getsize(a.out)))
     return 0
