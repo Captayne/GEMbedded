@@ -13,6 +13,11 @@ A small window on the PC that does two things over the USB console:
      writes it into the shots directory.  Ctrl+S saves a copy somewhere
      else.
 
+  *  Ctrl+V, Shift+Insert, or the button types the clipboard in.  An
+     address copied from a browser is long, case sensitive and easy to
+     get wrong by hand; a mistyped one costs a page load, a timeout and
+     a retry before it says so.
+
 It is not a remote desktop and does not try to be: the picture is taken
 when you ask for it, not streamed.  That is usually what you want while
 developing -- a still you can look at -- and it costs the machine four
@@ -217,7 +222,23 @@ def sequence(keysym, state):
 
 
 class App:
+    # One character at a time, with a pause between them.
+    #
+    # The machine turns each byte into a scancode and pushes it into the
+    # IKBD queue, which something upstream has to drain -- and whatever
+    # drains it is an AES program's event loop, not an interrupt.  Eight
+    # characters in a burst with 20 ms between bursts was tried first and
+    # lost roughly every other character, silently: an address came out as
+    # "hts/d.iie.r/iiAi".
+    #
+    # 20 characters a second is about as fast as anybody types, which is
+    # the rate the machine is built for.  An address takes two seconds and
+    # arrives whole, which beats a fifth of a second and a retype.
+    PASTE_CHUNK = 1
+    PASTE_PAUSE = 0.05
+
     def __init__(self, root, machine, shotdir):
+        self.root = root
         self.machine = machine
         self.shotdir = shotdir
         self.rows = None
@@ -230,6 +251,7 @@ class App:
         bar.pack(fill="x", padx=8, pady=(8, 4))
         tk.Button(bar, text="Screenshot (F5)", command=self.shot).pack(side="left")
         tk.Button(bar, text="Save as... (Ctrl+S)", command=self.save_as).pack(side="left", padx=6)
+        tk.Button(bar, text="Paste (Ctrl+V)", command=self.paste).pack(side="left")
         self.status = tk.Label(bar, text="typing goes to the machine",
                                bg="#202020", fg="#a0a0a0", anchor="w")
         self.status.pack(side="left", fill="x", expand=True, padx=8)
@@ -241,14 +263,18 @@ class App:
         root.bind("<Key>", self.on_key)
         root.bind("<F5>", lambda e: (self.shot(), "break")[1])
         root.bind("<Control-s>", lambda e: (self.save_as(), "break")[1])
+        root.bind("<Control-v>", lambda e: (self.paste(), "break")[1])
+        root.bind("<Shift-Insert>", lambda e: (self.paste(), "break")[1])
         root.focus_set()
 
     def say(self, text):
         self.status.config(text=text)
 
     def on_key(self, ev):
-        if ev.keysym in ("F5",) or (ev.state & 4 and ev.keysym in ("s", "S")):
-            return
+        if (ev.keysym in ("F5",)
+                or (ev.state & 4 and ev.keysym in ("s", "S", "v", "V"))
+                or (ev.state & 1 and ev.keysym == "Insert")):
+            return   # handled by its own binding
         ch = sequence(ev.keysym, ev.state)
         if ch is None:
             ch = SPECIAL.get(ev.keysym)
@@ -267,6 +293,41 @@ class App:
         except Exception as e:
             self.say("could not send: %s" % e)
         return "break"
+
+    def paste(self):
+        """Type the clipboard at the machine, as if it had been typed."""
+        try:
+            text = self.root.clipboard_get()
+        except Exception:
+            self.say("the clipboard is empty, or holds something that is not text")
+            return
+        # A copied address usually brings a newline with it, and whatever
+        # follows that is a second line nobody meant to type.  Take the
+        # first line with something on it, and leave Enter to the reader:
+        # pasting an address and sending it are two decisions.
+        line = ""
+        for candidate in text.splitlines():
+            if candidate.strip():
+                line = candidate.strip()
+                break
+        if not line:
+            self.say("nothing in the clipboard to type")
+            return
+        # The same range on_key() accepts.  Refusing is better than sending
+        # something the machine draws as a different character.
+        bad = sorted(set(c for c in line if not (" " <= c <= "~")))
+        if bad:
+            self.say("cannot type: %s"
+                     % " ".join("U+%04X" % ord(c) for c in bad))
+            return
+        try:
+            for i in range(0, len(line), self.PASTE_CHUNK):
+                self.machine.type(line[i:i + self.PASTE_CHUNK])
+                self.root.update()
+                time.sleep(self.PASTE_PAUSE)
+            self.say("typed %d characters -- Enter sends it" % len(line))
+        except Exception as e:
+            self.say("could not send: %s" % e)
 
     def shot(self):
         self.say("asking...")
@@ -312,9 +373,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-p", "--port", help="serial port (found by itself)")
+    ap.add_argument("--paste-delay", type=float, default=None,
+                    help="seconds between pasted characters (default %.2f)"
+                         % App.PASTE_PAUSE)
     ap.add_argument("-d", "--dir", default="shots",
                     help="where screenshots land (default: shots/)")
     a = ap.parse_args()
+
+    if a.paste_delay is not None:
+        App.PASTE_PAUSE = a.paste_delay
 
     try:
         machine = Machine(a.port)
