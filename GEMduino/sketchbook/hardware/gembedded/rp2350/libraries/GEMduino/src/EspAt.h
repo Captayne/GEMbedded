@@ -72,9 +72,46 @@ public:
     /* The time, as the module has it.  false while it still says 1970. */
     bool time(AtTime *t);
 
+    /*
+     * ---- a TCP connection ---------------------------------------------
+     *
+     * One at a time, which is what the module does (AT+CIPMUX=0).
+     *
+     * Nothing here waits for the module to volunteer anything. It could:
+     * the module announces arriving data by itself, as "+IPD,<len>", and
+     * reading that is the obvious way to know when there is something to
+     * fetch. It is also a trap. An unasked-for line turns up in the
+     * middle of the reply to whatever command happened to be running,
+     * and a reader that times out mid-line loses the rest of it -- so
+     * whether a page arrived came down to whether its announcement
+     * reached us in one piece, which it does about half the time.
+     *
+     * So available() asks instead, with AT+CIPRECVLEN?, and gets a reply
+     * to a question like any other. One more exchange per read, and a
+     * whole class of fault that cannot happen.
+     */
+    bool tcpOpen(const char *host, unsigned short port,
+                 unsigned long timeout_ms = 15000);
+
+    /* All of buf, or false.  The module takes about 2 KB in one go, so
+       anything longer is sent in pieces. */
+    bool tcpSend(const char *buf, int len);
+
+    /* How many bytes are waiting, or -1 if the connection has gone. */
+    long tcpAvail(void);
+
+    /* Up to max bytes of what is waiting; 0 when there is none yet. */
+    int tcpRead(char *buf, int max);
+
+    void tcpClose(void);
+
+    /* false once the other end has gone away and nothing is left. */
+    bool tcpOpened(void) const { return conn; }
+
 private:
     void (*trace)(const char *line, bool sent) = 0;
     char resp[320];
+    bool conn = false;          /* a TCP connection is open */
 };
 
 extern EspAt Esp;
