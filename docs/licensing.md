@@ -3,13 +3,18 @@
 Notes, not legal advice.  The decision on IRKernel is still open; this is
 what it hinges on.
 
-## The three parts
+## The four parts
 
 | Part | Author | Licence |
 |---|---|---|
 | pTOS (EmuTOS descendant, `pTOS/`) | pTOS and EmuTOS developers, plus our changes | **GPL v2 or later** |
 | IRKernel | Andreas Keibel | own: free for non-commercial use, 0.30 EUR per device commercially |
 | everything in this repository | Andreas Keibel | **MIT** (`LICENSE`) |
+| HighWire (`GEM/highwire/`) | HighWire developers, Neil Rackett, plus our changes | **GPL v3 or later** (its own `LICENSE`) |
+
+HighWire is the odd one out: it is the only third-party source kept in
+this repository rather than cloned beside it.  See below for why that is
+allowed and what it means.
 
 The SDK headers that programs include (`pTOS/include/rtx.h`, `touch.h`,
 `usbcon.h`) are MIT even though they live in the GPL repository, so that a
@@ -27,6 +32,34 @@ discussed on 2026-09-20): it would be compiled into the pTOS binary.
 Distributing that binary means distributing one combined work, which the
 GPL requires to be distributable under the GPL.  IRKernel would then need
 a GPL-compatible licence for that use.
+
+## HighWire, and why GPL v3 source sits in an MIT repository
+
+`GEM/highwire/` holds the browser's source, and since its 0.4.6 release it
+is **GPL v3 or later** with its own `LICENSE` file.  That licence is what
+permits us to keep it here and pass it on; the earlier arrangement, where
+everything under `GEM/` was somebody else's source cloned to work from and
+not ours to redistribute, no longer applies to this one.
+
+Two licences in one repository is not a conflict.  Each directory carries
+its own, and a repository holding several separately licensed works is an
+aggregation -- the same reasoning as pTOS and IRKernel above.  What matters
+in practice:
+
+* `GEM/highwire/` keeps its own `LICENSE`, its copyright notices and its
+  history.  Our changes to those files are GPL v3 like the rest of them.
+* `GEM/highwire-notes/` is ours and MIT: the compatibility layer, the
+  build and the write-up.  It is a separate work that is *combined* with
+  HighWire at build time, so the program it produces, `HIGHWIRE.PRG`, is
+  a combined work and is distributed under the GPL v3.
+* The MIT line in the table and in `README.md` therefore means *our own*
+  code, not literally every byte in the tree.
+
+The binary also links libcmini and the four image libraries, which have
+their own permissive licences, and it calls pTOS, which is GPL v2 or
+later.  Calling the operating system through its system-call interface
+does not combine the two, which is the same point the SDK headers make
+above.
 
 ## The ways out
 

@@ -75,6 +75,16 @@ night.
 - **Wi-Fi**, through an AT radio module on the second UART, with the settings
   kept by the machine.
 
+- **And a web browser on top of it.**
+  [HighWire](https://github.com/neilrackett/atarist-highwire), built for this
+  machine, fetching over that radio through the operating system's own STiK
+  transport — the same interface every Atari program that ever reached a
+  network looks for, so providing it turned a port into a recompile. It has
+  no TLS of its own, so https goes through a proxy.
+  [**GEM/highwire-notes/**](GEM/highwire-notes/README.md) is the port, in full.
+
+![HighWire running on the machine, with the Wi-Fi module beside it](docs/images/HIGHWIRE4ARM.jpg)
+
 ## It compiles in the Arduino IDE
 
 ```c
@@ -107,7 +117,8 @@ them from, and getting one wrong draws the wrong thing without complaining.
 | `pTOS/`       | the operating system itself, a separate repository (see below)         |
 | `rtcore/`     | the real-time runtime for core 1: IRKernel plus the `_RTX` mailbox     |
 | `GEMduino/`   | everything written with the Arduino IDE: the board package, the AES/VDI bindings, the compiler, the example sketches |
-| `GEM/`        | everything written any other way: the two-halves clock, `DEPLOY`       |
+| `GEM/`        | everything written any other way: the two-halves clock, `DEPLOY`, and the HighWire browser |
+| `Proxy/`      | WebOne, which terminates the TLS the browser cannot                    |
 | `apps/`       | programs for the machine, and `apps/lib`, the beginnings of the SDK    |
 | `tools/`      | host side: deploy, flash, screenshots, diagnostics                     |
 | `docs/`       | plans, notes, licensing                                                |
@@ -161,7 +172,9 @@ whole of it.
 
 It is a young port and it says so plainly. The display is 320×240 today,
 though the PSRAM is there for considerably more. There is no sound. The
-network is an AT module rather than a stack. Plenty of TOS software will not
+network is an AT module rather than a stack, and it speaks no TLS.
+A browser runs on it, and reaches the web, but the web it reaches is the
+part still served over plain http -- or whatever a proxy hands down. Plenty of TOS software will not
 run, because plenty of TOS software wants hardware this machine does not have.
 
 What does work, works properly — and two bugs found along the way went back
@@ -177,9 +190,10 @@ machine would otherwise have had.
 
 ## Licence
 
-The code in this repository is under the MIT licence (see [LICENSE.md](LICENSE.md)), so that
+Our code in this repository is under the MIT licence (see [LICENSE.md](LICENSE.md)), so that
 programs written against it are not bound by the operating system's licence.
-pTOS itself is GPL v2 or later, and IRKernel has its own licence;
+pTOS itself is GPL v2 or later, HighWire in `GEM/highwire/` is GPL v3 or
+later and carries its own `LICENSE`, and IRKernel has its own licence;
 `docs/licensing.md` explains what that means for the parts that are built
 together.
 
