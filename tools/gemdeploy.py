@@ -40,6 +40,8 @@ import zlib
 BAUD = 115200
 VID, PID = 0x1209, 0x0001       # what rp2350_usbcon.c announces
 PRODUCT = "pTOS"
+OURS = "GEMbedded"              # what list_ports() calls the machine
+UNIDENTIFIED = "unidentified"   # a port the system cannot name at all
 
 
 # ---------------------------------------------------------------- ports
@@ -76,11 +78,11 @@ def windows_ports():
                              r"HARDWARE\DEVICEMAP\SERIALCOMM")
         for i in range(winreg.QueryInfoKey(key)[1]):
             _, port, _ = winreg.EnumValue(key, i)
-            found.append((port, "GEMbedded" if port in ours else ""))
+            found.append((port, OURS if port in ours else ""))
     except OSError:
         pass
 
-    found.sort(key=lambda p: p[1] != "GEMbedded")
+    found.sort(key=lambda p: p[1] != OURS)
     return found
 
 
@@ -89,12 +91,15 @@ def posix_ports():
     for path in sorted(glob.glob("/dev/serial/by-id/*")):
         name = os.path.basename(path)
         real = os.path.realpath(path)
-        found.append((real, "GEMbedded" if PRODUCT in name else name))
+        found.append((real, OURS if PRODUCT in name else name))
     if not found:
+        # No by-id directory, so nothing found this way can be identified
+        # at all.  Say that rather than leaving it blank: it is the one
+        # case where a lone port is worth guessing at.  See pick_port().
         for pattern in ("/dev/cu.usbmodem*", "/dev/ttyACM*", "/dev/ttyUSB*"):
             for path in sorted(glob.glob(pattern)):
-                found.append((path, ""))
-    found.sort(key=lambda p: p[1] != "GEMbedded")
+                found.append((path, UNIDENTIFIED))
+    found.sort(key=lambda p: p[1] != OURS)
     return found
 
 
@@ -106,9 +111,26 @@ def pick_port():
     ports = list_ports()
     if not ports:
         sys.exit("gemdeploy: no serial port found -- is the machine plugged in?")
-    if ports[0][1] == "GEMbedded" or len(ports) == 1:
+    if ports[0][1] == OURS:
         return ports[0][0]
-    sys.exit("gemdeploy: several ports, and none of them says GEMbedded.\n"
+
+    # Being unable to tell is not the same as having looked and found
+    # nothing.  Where the system can name what sits behind a port --
+    # Windows' registry, /dev/serial/by-id -- a port that does not say
+    # GEMbedded is not the machine, and one such port is no more evidence
+    # than ten.  Only the glob fallback, which identifies nothing, earns
+    # a guess.
+    #
+    # The blanket "len(ports) == 1" this replaces had a sharp edge: run
+    # anything in the seconds after a flash, while the machine is still
+    # rebooting, and whatever single port the PC had left was declared to
+    # be the machine.  gemflash then announced that port "is back" having
+    # waited for nothing at all.
+    if len(ports) == 1 and ports[0][1] == UNIDENTIFIED:
+        return ports[0][0]
+
+    sys.exit("gemdeploy: no port says GEMbedded -- is the machine plugged"
+             " in, and past its bootrom?\n"
              "  Name one with -p:  " + ", ".join(p for p, _ in ports))
 
 

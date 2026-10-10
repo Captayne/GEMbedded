@@ -90,14 +90,22 @@ def wait_for_drive(timeout):
 
 
 def wait_for_port(name, timeout):
-    """The machine boots and the console comes back."""
+    """The machine boots and its console comes back; the port, or None.
+
+    Without a name, wait for a port that identifies itself as the machine
+    rather than asking pick_port() which one that would be.  In the
+    seconds after a flash there is no port of ours to find, and whatever
+    else the PC happens to have is not it -- so the question, put at that
+    moment, gets an answer that is confidently wrong.
+    """
     deadline = time.time() + timeout
 
     while time.time() < deadline:
-        if any(p == name for p, _ in gemdeploy.list_ports()):
-            return True
+        for port, what in gemdeploy.list_ports():
+            if (port == name) if name else (what == gemdeploy.OURS):
+                return port
         time.sleep(0.3)
-    return False
+    return None
 
 
 def main():
@@ -145,9 +153,12 @@ def main():
         # close may well fail.  That is success, not failure.
         say("  (the drive went away while writing: %s)" % e)
 
-    port = port or gemdeploy.pick_port()
-    if port and wait_for_port(port, 20):
-        say("%s is back" % port)
+    # Not pick_port(): see wait_for_port().  Without -p this waits for a
+    # port that says it is the machine, which is the only thing that
+    # makes "is back" mean anything.
+    back = wait_for_port(port, 20)
+    if back:
+        say("%s is back" % back)
     else:
         say("the machine is booting")
     return 0
