@@ -167,13 +167,25 @@ def inner(value):
 # clk_sys 150 MHz, divisor 2 (memory.c:158), quad -> 4 bits a clock.
 QMI_PEAK_BYTES = 75e6 * 4 / 8
 
+# What a DVI pixel costs in clock.  TMDS sends ten bits per pixel per
+# lane and HSTX shifts two bits per clock, so clk_hstx is five times the
+# pixel clock.  And clk_hstx divides by whole numbers only -- CLK_HSTX_DIV
+# has an INT field and no FRAC one (SVD) -- off clk_sys, pll_sys or
+# pll_usb.  So the pixel clock is not a free parameter at all: it is a
+# whole division of a PLL that is already running for something else,
+# and the timings have to be built around what comes out.
+TMDS_BITS_PER_PIXEL = 10
+HSTX_BITS_PER_CLK = 2
+PLL_SYS_HZ = 150e6          # bios/machine/rp2350/rp2350_board.c:148
+
 
 def evaluate_display(f, out):
-    """Everything RES, FORMAT, REFRESH and TIMING decide without saying so."""
+    """What RES, OUT, FORMAT, REFRESH and TIMING decide without saying so."""
     m = re.match(r"(\d+)x(\d+)$", f.get("RES", ""))
     if not m:
         return
     w, h = int(m.group(1)), int(m.group(2))
+    kind = f.get("TYPE", "").upper()
     bpp = {"RGB565": 16, "RGB666": 18, "RGB888": 24}.get(f.get("FORMAT", ""), 0)
     if not bpp:
         out.append("  ! FORMAT fehlt oder ist unbekannt -- ohne das ist die"
@@ -183,54 +195,122 @@ def evaluate_display(f, out):
     out.append("  i %dx%d %s -> Framebuffer %d + 2048 = %d B (%.2f MiB)"
                % (w, h, f["FORMAT"], fb, fb + 2048, (fb + 2048) / 1048576.0))
 
+    # What leaves the chip is not always what lies in the memory.  A DVI
+    # line is 640 pixels wide whatever the framebuffer holds: the scanout
+    # reads each pixel twice and each line twice, and from there on the
+    # timings, the pixel clock and the monitor all talk about OUT while
+    # the memory, the VDI and GEM all talk about RES.  One number for
+    # both is how a working picture gets debugged as a broken one.
+    ow, oh = w, h
+    mo = re.match(r"(\d+)x(\d+)$", f.get("OUT", ""))
+    if mo:
+        ow, oh = int(mo.group(1)), int(mo.group(2))
+        if ow % w or oh % h or ow // w != oh // h:
+            out.append("  ! OUT %dx%d ist kein gleiches ganzes Vielfaches von"
+                       " RES %dx%d -- vervielfachen kann der Scanout,"
+                       " skalieren nicht" % (ow, oh, w, h))
+        elif ow != w:
+            out.append("  i OUT %dx%d -> jedes Pixel %dfach, jede Zeile"
+                       " %dmal gelesen.  Der Monitor sieht %dx%d, GEM"
+                       " rechnet in %dx%d."
+                       % (ow, oh, ow // w, oh // h, ow, oh, w, h))
+
     t = inner(f.get("TIMING"))
     hz = f.get("REFRESH")
+    htot = vtot = 0
     if t:
         need = ("HS", "HBP", "HFP", "VS", "VBP", "VFP")
         missing = [k for k in need if k not in t]
         if missing:
             out.append("  ! TIMING unvollstaendig, fehlt: %s" % ", ".join(missing))
         else:
-            htot = w + int(t["HS"]) + int(t["HBP"]) + int(t["HFP"])
-            vtot = h + int(t["VS"]) + int(t["VBP"]) + int(t["VFP"])
+            # gegen OUT gerechnet, nicht gegen RES: die Porches gehoeren
+            # zum Signal, und das Signal kennt den Framebuffer nicht
+            htot = ow + int(t["HS"]) + int(t["HBP"]) + int(t["HFP"])
+            vtot = oh + int(t["VS"]) + int(t["VBP"]) + int(t["VFP"])
             out.append("  i HTOT %d  VTOT %d  -> %d DCLK je Bild"
                        % (htot, vtot, htot * vtot))
             if hz:
                 dclk = htot * vtot * float(hz)
                 out.append("  i REFRESH %s Hz -> DCLK %.3f MHz"
                            % (hz, dclk / 1e6))
-    elif f.get("TYPE", "").upper() == "RGBPANEL":
-        out.append("  ! TIMING fehlt.  Bei RGBPANEL ist RES nur die aktive"
-                   " Flaeche; ohne Porches laesst sich das PIO nicht"
-                   " programmieren")
+    elif kind in ("RGBPANEL", "HSTX"):
+        out.append("  ! TIMING fehlt.  Bei %s ist RES nur die aktive"
+                   " Flaeche; ohne Porches laesst sich weder ein PIO"
+                   " programmieren noch ein Takt ausrechnen" % kind)
 
+    # --- der Takt, bei der einen Displayart, deren Takt nicht frei ist
+    if kind == "HSTX" and htot and vtot and hz:
+        pclk = htot * vtot * float(hz)
+        want = pclk * TMDS_BITS_PER_PIXEL / HSTX_BITS_PER_CLK
+        out.append("  i HSTX: Pixeltakt %.3f MHz -> clk_hstx %.3f MHz"
+                   " (10 Bit je Pixel, 2 Bit je HSTX-Takt)"
+                   % (pclk / 1e6, want / 1e6))
+        n = PLL_SYS_HZ / want
+        if abs(n - round(n)) < 1e-9 and round(n) >= 1:
+            out.append("    pll_sys %.0f MHz / %d geht auf."
+                       % (PLL_SYS_HZ / 1e6, round(n)))
+        else:
+            out.append("  ! pll_sys %.0f MHz laesst sich darauf nicht"
+                       " ganzzahlig teilen, und CLK_HSTX_DIV kann nur"
+                       " ganzzahlig (SVD).  Erreichbar waere mit diesem"
+                       " pll_sys:" % (PLL_SYS_HZ / 1e6))
+            for d in (1, 2, 3, 4):
+                out.append("      Teiler %d -> clk_hstx %6.1f MHz ->"
+                           " Pixeltakt %6.3f MHz -> %6.2f Hz bei %dx%d"
+                           % (d, PLL_SYS_HZ / d / 1e6,
+                              PLL_SYS_HZ / d / 5 / 1e6,
+                              PLL_SYS_HZ / d / 5 / (htot * vtot), htot, vtot))
+            out.append("    Oder pll_sys auf %.0f MHz stellen, dann Teiler 1"
+                       " -- das ist eine Entscheidung ueber die ganze"
+                       " Maschine, nicht ueber den Bildschirm."
+                       % (want / 1e6))
+
+    # --- wo der Framebuffer landet, und was das kostet -----------------
+    stram = 456 * 1024
+    fits = fb + 2048 + 256 * 1024 <= stram
+    asked = f.get("VRAM", "AUTO").upper().replace("-", "")
+    if asked in ("STRAM", "PSRAM"):
+        where = "ST-RAM" if asked == "STRAM" else "PSRAM"
+        out.append("  i VRAM=%s -> %s" % (asked, where))
+        if where == "ST-RAM" and not fits:
+            out.append("  ! verlangt, passt aber nicht: %d B neben dem"
+                       " System in 456 KB ST-RAM" % (fb + 2048))
+    else:
+        if asked != "AUTO":
+            out.append("  ! VRAM=%s kenne ich nicht, behandle es wie AUTO"
+                       % asked)
+        where = "ST-RAM" if fits else "PSRAM"
+        out.append("  i VRAM=AUTO -> %s" % where)
+    if where == "PSRAM":
+        out.append("    Folge: im Betrieb kann nicht ins Flash geschrieben"
+                   " werden -- 23 ms ohne beide QSPI-Chip-Selects lassen"
+                   " das Scanout-FIFO leerlaufen (3.2).")
+    else:
+        out.append("    Folge: im Betrieb darf gespeichert werden -- der"
+                   " Scanout wird aus dem SRAM gefuettert, die 23 ms"
+                   " kosten nur die CPU.")
+
+    # --- und was der Scanout von dem verlangt, woraus er liest ---------
     if hz:
         rate = fb * float(hz)
-        pct = rate / QMI_PEAK_BYTES * 100
-        line = ("  %s PSRAM-Read %.2f MB/s = %.0f %% der QMI-Spitze"
-                " (%.1f MB/s, theoretisch)"
-                % ("!" if pct > 80 else "i", rate / 1e6, pct,
-                   QMI_PEAK_BYTES / 1e6))
-        out.append(line)
-        if pct > 100:
-            out.append("    Das geht nicht.  Der Bus kann es nicht liefern,"
-                       " auch nicht teilweise.")
-        elif pct > 55:
-            out.append("    Eng: davon geht der XIP-Code des Prozessors noch"
-                       " ab.  Niedriger anfangen und hochtasten.")
-
-    if f.get("VRAM", "AUTO").upper() == "AUTO":
-        stram = 456 * 1024
-        where = "ST-RAM" if fb + 2048 + 256 * 1024 <= stram else "PSRAM"
-        out.append("  i VRAM=AUTO -> %s" % where)
         if where == "PSRAM":
-            out.append("    Folge: im Betrieb kann nicht ins Flash geschrieben"
-                       " werden -- 23 ms ohne beide QSPI-Chip-Selects lassen"
-                       " das Scanout-FIFO leerlaufen (3.2).")
+            pct = rate / QMI_PEAK_BYTES * 100
+            out.append("  %s PSRAM-Read %.2f MB/s = %.0f %% der QMI-Spitze"
+                       " (%.1f MB/s, theoretisch)"
+                       % ("!" if pct > 80 else "i", rate / 1e6, pct,
+                          QMI_PEAK_BYTES / 1e6))
+            if pct > 100:
+                out.append("    Das geht nicht.  Der Bus kann es nicht"
+                           " liefern, auch nicht teilweise.")
+            elif pct > 55:
+                out.append("    Eng: davon geht der XIP-Code des Prozessors"
+                           " noch ab.  Niedriger anfangen und hochtasten.")
         else:
-            out.append("    Folge: im Betrieb darf gespeichert werden -- der"
-                       " Scanout wird aus dem SRAM gefuettert, die 23 ms"
-                       " kosten nur die CPU.")
+            out.append("  i SRAM-Read %.2f MB/s -- laeuft nicht ueber den"
+                       " QMI und konkurriert nicht mit dem XIP-Code."
+                       "  Das ist der ganze Grund, klein zu bleiben und"
+                       " zu vervielfachen." % (rate / 1e6))
 
 
 def parse(code):
