@@ -246,25 +246,41 @@ def evaluate_display(f, out):
         out.append("  i HSTX: Pixeltakt %.3f MHz -> clk_hstx %.3f MHz"
                    " (10 Bit je Pixel, 2 Bit je HSTX-Takt)"
                    % (pclk / 1e6, want / 1e6))
-        n = PLL_SYS_HZ / want
-        if abs(n - round(n)) < 1e-9 and round(n) >= 1:
-            out.append("    pll_sys %.0f MHz / %d geht auf."
-                       % (PLL_SYS_HZ / 1e6, round(n)))
+        # REFRESH ist bei HSTX eine Absicht, kein Messwert: der
+        # Pixeltakt kommt aus dem Teiler, und was dabei herauskommt,
+        # ist die wirkliche Bildfrequenz.  Ein Monitor faengt alles,
+        # was in seinen Bereich faellt -- 60,02 statt 60,00 merkt
+        # niemand.  Auf exakter Teilbarkeit zu bestehen hiesse, den
+        # einzigen brauchbaren Modus zu verwerfen.
+        best = max(1, int(round(PLL_SYS_HZ / want)))
+        got = PLL_SYS_HZ / best
+        real = got / (TMDS_BITS_PER_PIXEL / HSTX_BITS_PER_CLK) / (htot * vtot)
+        off = (real / float(hz) - 1.0) * 100.0
+        if abs(off) <= 1.0:
+            out.append("    pll_sys %.0f MHz / %d -> clk_hstx %.3f MHz ->"
+                       " wirklich %.2f Hz (%+.2f %% gegen die"
+                       " angeschriebenen %s)"
+                       % (PLL_SYS_HZ / 1e6, best, got / 1e6, real, off, hz))
+            out.append("    i Zeilenfrequenz %.2f kHz -- das ist die Zahl,"
+                       " auf die ein Skalierer einrastet."
+                       % (got / 5 / htot / 1e3))
         else:
-            out.append("  ! pll_sys %.0f MHz laesst sich darauf nicht"
-                       " ganzzahlig teilen, und CLK_HSTX_DIV kann nur"
-                       " ganzzahlig (SVD).  Erreichbar waere mit diesem"
-                       " pll_sys:" % (PLL_SYS_HZ / 1e6))
+            out.append("  ! daneben: pll_sys %.0f MHz / %d ergibt %.2f Hz"
+                       " statt %s (%+.1f %%).  CLK_HSTX_DIV kann nur"
+                       " ganzzahlig teilen (SVD), der Pixeltakt ist also"
+                       " keine freie Groesse.  Erreichbar waere:"
+                       % (PLL_SYS_HZ / 1e6, best, real, hz, off))
             for d in (1, 2, 3, 4):
                 out.append("      Teiler %d -> clk_hstx %6.1f MHz ->"
                            " Pixeltakt %6.3f MHz -> %6.2f Hz bei %dx%d"
                            % (d, PLL_SYS_HZ / d / 1e6,
                               PLL_SYS_HZ / d / 5 / 1e6,
                               PLL_SYS_HZ / d / 5 / (htot * vtot), htot, vtot))
-            out.append("    Oder pll_sys auf %.0f MHz stellen, dann Teiler 1"
-                       " -- das ist eine Entscheidung ueber die ganze"
-                       " Maschine, nicht ueber den Bildschirm."
-                       % (want / 1e6))
+            out.append("    Entweder HTOT/VTOT auf einen dieser Takte"
+                       " rechnen, oder pll_sys auf %.0f MHz stellen und"
+                       " Teiler 1 nehmen -- und das ist eine Entscheidung"
+                       " ueber die ganze Maschine, nicht ueber den"
+                       " Bildschirm." % (want / 1e6))
 
     # --- wo der Framebuffer landet, und was das kostet -----------------
     stram = 456 * 1024
