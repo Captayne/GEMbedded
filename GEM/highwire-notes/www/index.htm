@@ -1,0 +1,77 @@
+<html>
+<head><title>GEMbedded</title></head>
+<body bgcolor="#ffffff" text="#000000">
+
+<h1>It renders.</h1>
+
+<p>This page is <tt>C:\INDEX.HTM</tt> on the machine's own card. No
+network was involved. Everything below is here so that one look at the
+screen says what works and what does not.</p>
+
+<hr>
+
+<h2>1 &mdash; inline</h2>
+
+<p>This should be <b>bold</b>, this <i>italic</i>, this <u>underlined</u>
+and this <tt>monospaced</tt>. Entities: &amp; &lt; &gt; &quot; &nbsp;
+&mdash; &copy; &uuml; &szlig;. If you can read "&uuml;&szlig;" as u-umlaut
+and sharp-s, the character set is right.</p>
+
+<p>A very long paragraph, on purpose, so that the line breaking has
+something to do: the width of this window is 320 pixels and the text has
+to be broken to fit it, again after every resize, without a word being
+cut and without a line running off the right edge.</p>
+
+<h2>2 &mdash; lists</h2>
+
+<ul>
+<li>A bullet.</li>
+<li>Another, with <b>bold</b> inside it.</li>
+<li>A third, long enough to need a second line, which should line up
+under the first one and not under the bullet.</li>
+</ul>
+
+<ol>
+<li>One.</li>
+<li>Two.</li>
+<li>Three.</li>
+</ol>
+
+<h2>3 &mdash; a table</h2>
+
+<table border="1">
+<tr><th>what</th><th>expected</th></tr>
+<tr><td>borders</td><td>drawn</td></tr>
+<tr><td>columns</td><td>aligned</td></tr>
+<tr><td>a longer cell that wraps</td><td>still aligned</td></tr>
+</table>
+
+<h2>4 &mdash; preformatted</h2>
+
+<pre>
+  +-----------+
+  |  aligned  |
+  +-----------+
+   1234567890
+</pre>
+
+<h2>5 &mdash; links</h2>
+
+<p><a href="index.htm">This link points back here.</a> Following it
+reloads the page, which tests the loader without a network.</p>
+
+<p><a href="http://example.invalid/">This one is a real URL</a> and will
+fail, because there is no network module yet &mdash; that is the correct
+outcome, not a bug.</p>
+
+<h2>6 &mdash; redraw</h2>
+
+<p>Drag another window across this one, or scroll down and back up.
+What was covered has to come back exactly as it was.</p>
+
+<hr>
+
+<p><small>GEMbedded &middot; HighWire on a RP2350</small></p>
+
+</body>
+</html>
