@@ -1,0 +1,225 @@
+//////////////////////////////////////////////////////////////////////
+//
+//  weact-ak -- WeAct Studio RP2350B core board, von Hand verdrahtet
+//              nach AK-Wiring (keine Stiftleisten, Draht im PTH).
+//
+//  Das hier ist KEINE Stueckliste eines gekauften Bretts, sondern die
+//  Beschreibung einer Verkabelung.  Dasselbe Core-Board mit einem
+//  Display an anderen Pins ist eine andere Maschine und braucht einen
+//  anderen Namen.
+//
+//  STATE sagt, wie ernst die Zahlen zu nehmen sind:
+//      GEPLANT      noch kein Draht gezogen
+//      VERDRAHTET   gebaut, aber nie gebootet
+//      BESTAETIGT   hat gebootet, und res_claim() stimmt damit ueberein
+//
+//  Zwei Kommentararten, zwei Aufgaben:
+//      //  bis Zeilenende -- Prosa.  WARUM ein Pin sitzt, wo er sitzt.
+//          Das ist der Inhalt, den kein Werkzeug rekonstruieren kann.
+//      /*  schaltet eine Deklaration ab, verschachtelbar.  Das ist der
+//          Was-waere-wenn-Schalter: parken, Ampel lesen, entscheiden.
+//
+//  Verbindlich sind nur Chipfakten (SVD, SDK-Header) und die Pins in den
+//  Treiberquellen.  Jede Zeile unten sagt, aus welcher der beiden sie
+//  stammt -- oder dass sie ein Entwurf ist.
+//
+//////////////////////////////////////////////////////////////////////
+
+BOARD "weact-ak"   CHIP=RP2350B   FLASH=16M
+STATE  VERDRAHTET                 // Betriebsart A gebaut, B noch nicht
+
+
+//====================================================================
+//  Was das BRETT schon mitbringt, bevor wir einen Draht ziehen
+//
+//  Gruen heisst "hat keiner angefasst".  Der Brettbauer hat aber schon
+//  angefasst: das WeAct hat drei Taster (Reset, Boot, Key) und eine LED.
+//  Reset und Boot haengen nicht an GPIOs, die anderen beiden schon --
+//  und ohne diese zwei Zeilen faerbt die Ampel sie gruen und luegt.
+//====================================================================
+
+// TREIBER: keiner.  Hardware des Bretts, vom Hersteller.
+// Der Key-Taster ist zugleich die Hardwaretuer ins BIOS-Setup (Abschnitt
+// 4.1): eine gehaltene Taste ist der einzige Weg hinein, der auch dann
+// funktioniert, wenn USB verwirrt ist -- und seit heute wissen wir, dass
+// es diesen Weg geben MUSS: ein falscher PSRAM-CS-Pin haengt die
+// Maschine so auf, dass der 1200-Baud-Reset nicht mehr greift.
+DEFINE BUTTON  (#0, KEY=GP23, ACTIVE=LOW, ROLE=RESCUE);
+//                                       ^^^^^^^^^^^^
+// PFLICHT, und zwar vor allem anderen.  Genau ein Pin je Brett muss
+// ROLE=RESCUE tragen: gehalten beim Einschalten, ignoriert die
+// Maschine den gespeicherten Satz und startet mit dem, was
+// einkompiliert ist.
+//
+// Warum das keine Annehmlichkeit ist, sondern die Voraussetzung
+// dafuer, dass man den Satz ueberhaupt beschreiben darf: am
+// 05.10.2026 gemessen, dasselbe Image dreimal gebaut --
+//     psram_cs=0  (richtig)   bootet, 16 MB Alt-RAM
+//     psram_cs=8  (falsch)    HardFault-Schleife
+//     psram_cs=47 (falsch)    HardFault-Schleife
+// In der Schleife greift auch der 1200-Baud-Reset nicht mehr, auf dem
+// gemflash.py beruht.  Ohne diesen Pin kostet ein Vertipper im Satz
+// den BOOT-Knopf und ein Neuflashen; mit ihm einen Tastendruck.
+//
+// Der Pin muss ein schlichter GPIO mit innerem Pull-up sein und gegen
+// Masse gehen -- er wird gelesen, bevor irgendetwas aus dem Satz
+// angewandt wird, also darf er von nichts darin abhaengen.
+// Hat ein Brett keinen Taster, genuegt ein erreichbarer Pin, den man
+// mit einem Draht auf Masse ziehen kann.  Keinen zu haben genuegt nicht.
+DEFINE LED     (#0, USER=GP25);             // WeAct User-LED
+
+//====================================================================
+//  Immer da, in jeder Betriebsart
+//====================================================================
+
+// TREIBER: bios/Kconfig:479.  Der QMI fuehrt CS1 nur auf GP0, 8, 19
+// oder 47 heraus.  Das WeAct hat ihn auf GP0 -- gemessen am 05.10.2026:
+// 16 MB antworten, ID stabil ueber zwei Lesungen.
+DEFINE PSRAM   (CS=GP0);
+
+// TREIBER: bios/machine/rp2350/rp2350_uart1.c:62.  UART1, das "_UA1"-
+// Cookie, und damit der Weg, auf dem STiK ins Netz geht.
+// Der ESP-01 laeuft mit ESP-AT; der Katalog in tools/Connecty kennt ihn.
+// WARUM GP4/GP5 und nicht woanders: weil der Treiber sie festlegt.  Das
+// ist eine der neun einbetonierten Stellen, die noch fallen muessen.
+DEFINE COM     (#1, TX=GP4, RX=GP5);        // ESP-01, AT-Firmware
+
+/*
+// --- GEPARKT: DCF77-Funkuhr am ersten seriellen Port ---------------
+// Kostet GEMduino GP2/GP3 und GEMbedded nichts.  Vor dem Einbau einmal
+// einkommentieren und die Ampel lesen: GP2/GP3 koennen uart0 nur ueber
+// F11 (SVD), also sind sie fuer sonst nichts mehr zu gebrauchen.
+DEFINE COM     (#0, TX=GP2, RX=GP3);        // DCF77-RTC
+*/
+
+
+//====================================================================
+//  Betriebsart A -- 2.8" ILI9341, resistiver Touch, SD huckepack
+//  AKTIV.  Das ist die Kopie der laufenden Waveshare, Pin fuer Pin.
+//
+//  WARUM Pin fuer Pin kopiert: damit beim ersten Aufbau mit AK-Wiring
+//  NUR die Verdrahtung neu ist -- nicht zugleich Treiber, Aufloesung
+//  und Panel.  Geht kein Bild an, liegt es an den Draehten.
+//====================================================================
+
+// TREIBER: rp2350_lcd.c:42..47.  Kein echter SPI-Bus: PIO1 erzeugt den
+// Strom, DMA fuettert ihn, 25 MHz (PIO_CLKDIV 3, :109).  Darum BUS=PIO1
+// -- auf dem Draht sieht es aus wie SPI, teilt aber nichts.
+// Bei Bildfehlern nicht raten, sondern PIO_CLKDIV hochdrehen:
+//     3 -> 25,00 MHz    6 -> 12,50 MHz    12 -> 6,25 MHz
+// Laeuft es langsam sauber, ist die Grenze von AK-Wiring gemessen.
+DEFINE DISPLAY (#0, TYPE=SPI, BUS=PIO1, INSTR=2, CHIP=ILI9341,
+                    PANEL="ili9341-320x240",
+                    RES=320x240, FORMAT=RGB565, VRAM=AUTO,
+                    SCK=GP10, MOSI=GP11, CS=GP24, DC=GP27,
+                    RST=GP26, LED=GP21);
+// ENTWURF, nicht TREIBER: rp2350_lcd.c:45/46 sagt heute RST=23 und
+// DC=25.  Das waren auf der Waveshare freie Pins, auf dem WeAct sind
+// es der Key-Taster und die User-LED.  Den Reset auf den Taster zu
+// legen heisst, beim Druecken einen treibenden Ausgang gegen Masse
+// zu schalten.  Also GP26/GP27 -- und die zwei #defines muessen mit.
+// Gefunden, weil das Brett seine eigene Hardware endlich mit anmeldet.
+// VRAM=AUTO -> 320*240*2 + 2048 = 155.648 B, passt in 456 KB ST-RAM.
+// Folge, die man sonst nicht sieht: weil der Scanout aus dem SRAM
+// gespeist wird, darf im Betrieb ins Flash geschrieben werden -- die
+// 23 ms kosten nur die CPU, nicht das Bild.
+
+// TREIBER: rp2350_touch.c:37..41.  SPI0, 2,4 MHz (SSPCPSR 62).
+// WARUM eigener Bus und nicht am Display: andere Instanz, anderer Takt.
+// Bei fliegender Verdrahtung ist der Reflex "spare Draehte, haeng sie
+// zusammen" verstaendlich -- hier kostet er den Bringup.
+DEFINE TOUCH   (#0, TYPE=SPI, CHIP=XPT2046,
+                    SCK=GP6, MOSI=GP7, MISO=GP20, CS=GP8, INT=GP9);
+
+// TREIBER: rp2350_spi.c:21..24.  SPI1 (PL022).
+// Der Leser sitzt auf der RUECKSEITE des Displaymoduls -- das WeAct hat
+// keinen Slot.  Deshalb verschwindet er in Betriebsart B mit.
+// ACHTUNG: CS muss >= GP32 bleiben.  rp2350_spi.c:38 rechnet
+//     CS_BIT = 1 << (SD_CS_PIN - 32)
+// und greift auf die "HI"-SIO-Register zu.  GP43 passt, GP9 nicht.
+DEFINE SDCARD  (#0, SCK=GP30, MOSI=GP31, MISO=GP40, CS=GP43);
+// Nebenwirkung: GP40 ist ADC0, GP43 ist ADC3.  Zwei der acht
+// Analogkanaele gehen dafuer drauf.
+
+
+//====================================================================
+//  Betriebsart B -- EP5008S 480x854 RGB565, kapazitiver Touch GT911
+//  GEPARKT.  Entwurf; noch kein Draht, und es gibt noch keinen
+//  RGB-Treiber im Image (das ist eine neue ART Geraet -> Neubau).
+//
+//  Es kann immer nur EINE Betriebsart aktiv sein: #0 ist der GEM-
+//  Bildschirm, und GEM hat einen.  Zum Umschalten A parken und B
+//  freigeben -- und natuerlich umloeten.
+//
+//  Die SD faellt dabei weg: ihr Slot sitzt am anderen Display.
+//====================================================================
+
+/*
+// INSTR=24 ist ein ENTWURF -- geschaetzt, nicht gezaehlt.  Der Treiber
+// existiert nicht.  Zum Vergleich: der ILI9341-Stream braucht 2
+// (rp2350_lcd.c, PROG_LEN).  Ein Block hat 32 Plaetze fuer vier State
+// Machines zusammen, und die gehen vor den Machines aus.
+//
+// DATENBLATT: Porches und Polaritaeten aus den Bringup-Notes, die sie
+// aus einem Hersteller-Screenshot und EP5008S初始化.c haben.
+// ENTWURF: alle Pinnummern.  Nichts davon ist gelaufen.
+//
+// WARUM BASE=GP16: 16 Datenleitungen plus DCLK muessen in EIN PIO-
+// Fenster passen, und davon gibt es nur zwei -- Basis 0 oder 16
+// (PIO0.GPIOBASE, Bit 4, SVD).  GP16..GP32 liegt in Basis 16.
+// Und es laesst GP40..GP47 frei, also alle acht ADC-Kanaele.
+// Preis: GP16..GP19 gehoeren zum HSTX-Block, HDMI ist damit fuer
+// diese Verkabelung tot.  Siehe 13.7.1 -- eine der drei Optionen
+// (HDMI, ADC, eigene Pins) muss man aufgeben, und hier ist es HDMI.
+DEFINE DISPLAY (#0, TYPE=RGBPANEL, BUS=PIO0, INSTR=24, CHIP=ST7701S,
+                    PANEL="ep5008s",
+                    RES=480x854, FORMAT=RGB565, REFRESH=20, VRAM=AUTO,
+                    BASE=GP16,              // B0..B4 G0..G5 R0..R4, LSB zuerst
+                    DCLK=GP32, HSYNC=GP33, VSYNC=GP34, DE=GP35,
+                    TIMING=(HS=6,  HBP=30, HFP=12,
+                            VS=1,  VBP=30, VFP=12,
+                            HS_POL=LOW, VS_POL=LOW, DE_POL=HIGH,
+                            DCLK_EDGE=RISING),
+                    CFG=S3W(_CS=GP36, SCL=GP37, SDA=GP38),
+                    RST=GP39, LED=GP14);
+//
+// WARUM REFRESH=20 und nicht 30, und schon gar nicht die 55,5 des
+// Herstellers -- gerechnet, nicht geraten:
+//     QMI 75 MHz quad      -> Spitze 37,5 MB/s (theoretisch, ohne
+//                             Kommando-Overhead und ohne den XIP-Code,
+//                             der sich dieselben Leitungen teilt)
+//     480*854*2 = 801 KB   -> 20 Hz = 16,4 MB/s   (44 % der Spitze)
+//                             25 Hz = 20,5 MB/s   (55 %)
+//                             30 Hz = 24,6 MB/s   (66 %, eng)
+//                           55,5 Hz = 45,5 MB/s   (121 %, geht nicht)
+// Beim Inbetriebnehmen tastet man sich heran und faengt nicht am
+// Limit an, das dann ohnehin reisst.  Hochdrehen kostet eine
+// gembios-Sitzung, und eine zu hohe Probe ist nach dem naechsten
+// Einschalten von allein weg.
+//
+// VRAM=AUTO -> 480*854*2 + 2048 = 821.888 B.  Passt NICHT in 456 KB
+// ST-RAM, also PSRAM.  Folge: im Betrieb kann nicht ins Flash
+// geschrieben werden -- 23 ms ohne beide QSPI-Chip-Selects lassen das
+// Scanout-FIFO leerlaufen, und danach sitzt das Bild schief.
+// Einstellungen also nur vor dem Displaystart speichern.
+
+// ENTWURF.  GT911, kapazitiv: I2C statt SPI, absolute Koordinaten statt
+// Rohwerte, INT statt Pollen, KEINE Kalibrierung, Multitouch.
+// WARUM GP12/GP13: i2c0_sda/i2c0_scl laut SVD, und sie liegen unterhalb
+// des Datenbusses, stoeren also das PIO-Fenster nicht.
+// Offen: das Gestenmodell (Tap, Doppeltap, Hold, Tap-wird-Move) steckt
+// heute noch IM XPT2046-Treiber.  Beim zweiten Zeigegeraet muss es eine
+// Etage hoeher, sonst schreibt man es zum zweiten Mal.
+DEFINE TOUCH   (#0, TYPE=I2C, CHIP=GT911, ADDR=0x5d,
+                    SDA=GP12, SCL=GP13, INT=GP10, RST=GP11);
+*/
+
+
+//====================================================================
+//  Was der Anwender fuer sich beansprucht
+//  DEFINE ist das System, RESERVE ist der Anwender -- beide landen in
+//  derselben Registratur, sonst weiss keine Seite von der anderen.
+//====================================================================
+
+// Nichts reserviert: die User-LED, fuer die hier GP15 stand, sitzt
+// auf dem Brett selbst an GP25 und ist oben angemeldet.

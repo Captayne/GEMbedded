@@ -1,0 +1,60 @@
+# WeAct Studio RP2350B core board, von Hand verdrahtet (AK-Wiring),
+# mit demselben 2.8" ILI9341-Modul, das die Waveshare traegt.
+#
+# Herkunftsklasse aller Pins hier: TREIBER.  Jede Nummer ist aus der Quelle
+# des laufenden Codes abgelesen, keine aus einem Entwurf.  Darum ist dieses
+# Profil verdrahtbar -- es beschreibt eine Firmware, die es schon gibt.
+#
+# Bauen:   make rp2350-weact_defconfig && make
+# Zurueck: make rp2350_defconfig && make          (Waveshare, unveraendert)
+
+BOARD "weact-ak-ili9341"  CHIP=RP2350B  FLASH=16M
+STATE GEPLANT          # noch kein Draht gezogen
+#
+# WARUM dieses Brett ueberhaupt:
+#   Nicht als Ziel, sondern als Messung.  Es ist eine Kopie der
+#   laufenden Waveshare, Pin fuer Pin, damit beim ersten Aufbau
+#   mit AK-Wiring NUR die Verdrahtung neu ist -- nicht zugleich
+#   Treiber, Aufloesung und Panel.  Geht das Bild nicht an, liegt
+#   es an den Draehten, und an sonst nichts.
+
+# bios/Kconfig:479 -- der QMI kann CS1 nur auf GP0, 8, 19 oder 47 herausfuehren.
+# WeAct: 0.  Waveshare: 47.  Das ist der einzige Unterschied im defconfig.
+DEFINE PSRAM   (CS=GP0);
+
+# rp2350_lcd.c:42..47 -- gestreamt von PIO1 + DMA, 25 MHz (PIO_CLKDIV 3, :109).
+# Die Init-Sequenz steht noch als C im Treiber, nicht als .seq im Katalog;
+# PANEL= zeigt vorwaerts auf den Tag, an dem sie Daten wird (Abschnitt 9.1).
+DEFINE DISPLAY (#0, TYPE=SPI, BUS=PIO1, CHIP=ILI9341, PANEL="ili9341-320x240",
+                    RES=320x240, FORMAT=RGB565,
+                    SCK=GP10, MOSI=GP11, CS=GP24, DC=GP25, RST=GP23, LED=GP21);
+
+# rp2350_touch.c:37..41 -- SPI0, 2,4 MHz (SSPCPSR 62).  Eigener Bus, eigener
+# Takt: NICHT mit dem Display zusammenlegen, auch wenn es Draehte spart.
+DEFINE TOUCH   (TYPE=SPI, CHIP=XPT2046,
+                    SCK=GP6, MOSI=GP7, MISO=GP20, CS=GP8, INT=GP9);
+
+# rp2350_spi.c:21..24 -- SPI1.  Der Leser sitzt auf der Rueckseite des
+# Displaymoduls, weil das WeAct keinen Slot hat.
+# ACHTUNG: CS muss >= GP32 bleiben.  rp2350_spi.c:38 rechnet
+#   CS_BIT = 1 << (SD_CS_PIN - 32)  und greift auf die "HI"-SIO-Register zu.
+DEFINE SDCARD  (#0, SCK=GP30, MOSI=GP31, MISO=GP40, CS=GP43);
+
+# rp2350_uart1.c:62..63 -- UART1, das "_UA1"-Cookie.  Hier kommt der ESP hin.
+DEFINE COM     (#1, TX=GP4, RX=GP5);
+
+# Geparkt: eine DCF77-Funkuhr am ersten seriellen Port.  Angeschaltet
+# kostet sie GP2/GP3 -- und zwar fuer immer, denn COM#0 ist uart0 und
+# uart0_tx/rx gibt es auf GP2/GP3 nur ueber F11.  Zum Ausprobieren das
+# /* */ wegnehmen und die Ampel noch einmal lesen.
+/*
+DEFINE COM     (#0, TX=GP2, RX=GP3);        # DCF77-RTC
+*/
+
+# Frei: GP1 GP2 GP3 GP12..GP19 GP22 GP26..GP29 GP32..GP39 GP41 GP42 GP44..GP47
+#
+# Davon zwei Gruppen, die man nicht gedankenlos ausgeben sollte:
+#   GP12..GP19  die EINZIGEN HSTX-Pins.  Gehoeren dem naechsten Bildschirm,
+#               Panel oder HDMI (13.7.1).  Hier nichts anderes anschliessen.
+#   GP41 GP42 GP44..GP47  der Rest des ADC.  GP40 und GP43 sind schon weg,
+#               die haelt die SD-Karte (ADC0 und ADC3).

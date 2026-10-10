@@ -1,0 +1,152 @@
+//////////////////////////////////////////////////////////////////////
+//
+//  waveshare-pizero -- Waveshare RP2350-PiZero mit dem 2.8" ILI9341-
+//                      Modul, SD-Leser auf dessen Rueckseite, ESP-01
+//                      am UART1.
+//
+//  DAS IST DIE MASCHINE, DIE LAEUFT.  Sie hat am 10.10.2026 einen GEM-
+//  Desktop gezeichnet, der als PNG vorliegt, und sie ist der Stand, auf
+//  den jederzeit zurueckgefallen werden kann.  Alles andere in diesem
+//  Ordner ist Vorhaben; dieses hier ist Besitz.
+//
+//  Dass es dieses Profil bis heute NICHT gab, ist der peinlichste Punkt
+//  des ganzen Vorhabens: das System, das Bretter beschreiben soll, hat
+//  als einziges das Brett nicht beschrieben, auf dem es laeuft.  Zwei
+//  Befunde sind beim Nachtragen sofort herausgefallen -- siehe unten
+//  bei GP23.  Beide waren die ganze Zeit da.
+//
+//  HERKUNFT DER ZAHLEN -- hier die beste Klasse, die es gibt:
+//      TREIBER   jede Pinnummer unten ist aus der Quelle des Codes
+//                abgelesen, der auf diesem Brett LAEUFT.  Nicht aus
+//                einem Datenblatt, nicht aus einem Entwurf.  Datei und
+//                Zeile stehen dabei.
+//      KCONFIG   was im Build steht (configs/rp2350_defconfig und
+//                bios/Kconfig), mit Zeilennummer.
+//
+//////////////////////////////////////////////////////////////////////
+
+BOARD "waveshare-pizero-ili9341"   CHIP=RP2350B   FLASH=16M
+STATE  BESTAETIGT
+// Mit dem Vorbehalt, den STATE BESTAETIGT eigentlich verlangt: es gibt
+// noch kein res_claim(), das die Tabelle gegen die Wirklichkeit haelt.
+// Bestaetigt heisst hier "diese Pins stehen in Code, der gebootet hat",
+// und das ist eine Stufe schwaecher als gemeint.  Die Stufe fehlt dem
+// ganzen Vorhaben, nicht diesem Profil.
+
+
+//====================================================================
+//  Speicher
+//====================================================================
+
+// KCONFIG: bios/Kconfig:480, CONF_RP2350_PSRAM_CS_PIN default 47.
+// CHIP: GP47 kann xip_ss_n_1 (f9, SVD).  Gemessen laeuft die Maschine
+// damit mit 16 MB Alt-RAM.
+//
+// Fuer die Nachwelt: GENAU DIESE 47 haengen das WeAct auf (05.10.2026,
+// HardFault-Schleife), und genau diese 47 braucht auch der Fruit Jam.
+// Dieselbe Zahl, drei Bretter, zwei Bedeutungen.  Das ist der Grund,
+// warum sie in den gespeicherten Satz gewandert ist.
+DEFINE PSRAM   (CS=GP47);
+// Nebenwirkung: GP47 ist ADC7.
+
+
+//====================================================================
+//  Bildschirm und Zeiger
+//====================================================================
+
+// TREIBER: rp2350_lcd.c:43..48.  Kein echter SPI-Bus: PIO1 erzeugt den
+// Strom, DMA fuettert ihn, 25 MHz (PIO_CLKDIV 3).  Darum BUS=PIO1 --
+// auf dem Draht sieht es aus wie SPI, teilt aber nichts.
+DEFINE DISPLAY (#0, TYPE=SPI, BUS=PIO1, INSTR=2, CHIP=ILI9341,
+                    PANEL="ili9341-320x240",
+                    RES=320x240, FORMAT=RGB565, VRAM=AUTO,
+                    SCK=GP10, MOSI=GP11, CS=GP24, DC=GP25,
+                    RST=GP23, LED=GP21);
+
+// !!! BEFUND 1, beim Schreiben dieses Profils gefunden !!!
+//
+// GP23 ist hier der Display-Reset (rp2350_lcd.c:46) -- und zugleich
+// der Vorgabewert von CONF_RP2350_RESCUE_PIN (bios/Kconfig:495,
+// default 23).  Auf dieser Maschine ist der Rettungspin also die
+// Reset-Leitung des Bildschirms.
+//
+// Was dabei wirklich passiert: rescue_held() (rp2350_nvram.c:312) legt
+// GP23 als Eingang mit innerem Pull-up, wartet, und liest.  Es TREIBT
+// nichts, der Bildschirm nimmt also keinen Schaden.  Aber:
+//
+//   - Haelt das Displaymodul seinen RST beim Einschalten kurz tief
+//     (manche haben ein RC-Glied), liest die Maschine "Taste
+//     gehalten" und IGNORIERT STILL IHREN GESPEICHERTEN SATZ.
+//     Niemand drueckt etwas, und trotzdem starten die Vorgaben.
+//   - Umgekehrt gibt es auf diesem Brett ueberhaupt keinen Weg, den
+//     Rettungsmechanismus absichtlich auszuloesen.  Die eine
+//     Sicherung, die wir als PFLICHT erklaert haben, ist hier nicht
+//     bedienbar.
+//
+// Bisher unauffaellig, weil der Satz auf dieser Maschine noch nie
+// beschrieben wurde -- Vorgaben und Satz sind dasselbe, also faellt
+// es nicht auf.  Das aendert sich mit dem ersten GEMSET.
+// Zu tun: CONF_RP2350_RESCUE_PIN fuer dieses Brett auf einen freien
+// Pin legen oder auf -1 (aus), und den Vorgabewert 23 in Kconfig
+// ueberdenken -- er stammt vom WeAct und passt nur dort.
+
+// !!! BEFUND 2, derselbe Anlass !!!
+//
+// rescue_held() liest RP2350_SIO_GPIO_IN -- das ist das Register der
+// UNTEREN Bank, GP0..GP31.  Fuer GP32..GP47 braeuchte es
+// SIO_GPIO_HI_IN.  Kconfig erlaubt aber "range -1 47"
+// (bios/Kconfig:496).  Wer also GP40 als Rettungspin eintraegt,
+// bekommt eine Verschiebung um 40 Stellen auf einem 32-Bit-Wert, also
+// undefiniertes Verhalten -- und die Tuer, die im Notfall aufgehen
+// muss, geht nie auf oder immer.
+// Das Muster fuer die Reparatur steht schon im Baum: memory.c macht
+// CS_PIN_LEVEL() genau deshalb zum parametrisierten Makro, das die
+// Bank zur Laufzeit waehlt.
+
+// TREIBER: rp2350_touch.c:37..41.  SPI0 (PL022), 2,4 MHz.
+// Eigener Bus und nicht am Display: andere Instanz, anderer Takt.
+DEFINE TOUCH   (#0, TYPE=SPI, CHIP=XPT2046,
+                    SCK=GP6, MOSI=GP7, MISO=GP20, CS=GP8, INT=GP9);
+
+
+//====================================================================
+//  Karte und Netz
+//====================================================================
+
+// TREIBER: rp2350_spi.c:21..24.  SPI1 (PL022).  Der Leser sitzt auf
+// der Rueckseite des Displaymoduls.
+// ACHTUNG, steht als Kommentar schon in der Quelle: CS muss >= GP32
+// bleiben, weil rp2350_spi.c:38 CS_BIT = 1 << (SD_CS_PIN - 32) rechnet
+// und die "HI"-SIO-Register nimmt.  Derselbe Bankfehler wie oben bei
+// BEFUND 2, nur hier bemerkt und dokumentiert.
+DEFINE SDCARD  (#0, SCK=GP30, MOSI=GP31, MISO=GP40, CS=GP43);
+// Nebenwirkung: GP40 ist ADC0, GP43 ist ADC3.  Zwei der acht
+// Analogkanaele gehen dafuer drauf.
+
+// TREIBER: rp2350_uart1.c:62..63.  UART1, das "_UA1"-Cookie, und damit
+// der Weg, auf dem STiK ins Netz geht.  ESP-01 mit AT-Firmware.
+DEFINE COM     (#1, TX=GP4, RX=GP5);
+
+
+//====================================================================
+//  Was das Brett selbst mitbringt
+//
+//  LUECKE, und sie wird hier benannt statt geraten: welche Taster und
+//  LEDs das RP2350-PiZero auf eigenen GPIOs hat, ist nicht
+//  nachgeschlagen.  Es hat einen BOOT- und einen RESET-Knopf; ob einer
+//  davon an einem GPIO haengt und ob es eine User-LED gibt, steht hier
+//  erst, wenn es jemand im Schaltplan gelesen hat -- mit
+//  tools/sch2net.py, wenn Waveshare einen in Eagle veroeffentlicht,
+//  sonst von Hand.
+//
+//  Bis dahin faerbt die Ampel diese Pins gruen und luegt dabei
+//  moeglicherweise.  Das ist der Unterschied zwischen "frei" und
+//  "nicht nachgesehen", und er gehoert in die Datei.
+//====================================================================
+
+
+//====================================================================
+//  Was der Anwender fuer sich beansprucht
+//====================================================================
+
+// Nichts.  Diese Maschine ist Werkzeug, nicht Projekt.

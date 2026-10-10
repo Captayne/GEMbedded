@@ -1,0 +1,399 @@
+//////////////////////////////////////////////////////////////////////
+//
+//  fruitjam -- Adafruit Fruit Jam, RP2350B, Bild ueber HSTX/DVI auf
+//              einen gewoehnlichen HDMI-Monitor.
+//
+//  Das Gegenstueck zu weact-ak.gem: dort beschrieb die Datei eine
+//  VERKABELUNG, hier beschreibt sie ein GEKAUFTES BRETT.  Kein einziger
+//  Draht ist hier eine Entscheidung -- alles unten steht schon auf der
+//  Platine, und unsere Freiheit beschraenkt sich auf die Frage, was wir
+//  davon benutzen.  Das macht die Datei nicht ueberfluessig, sondern
+//  kurz: sie ist die Liste dessen, was fuer einen GEMduino-Sketch
+//  bereits weg ist, bevor er die erste Zeile hat.
+//
+//  HERKUNFT DER ZAHLEN -- und diesmal ist sie ungewoehnlich gut:
+//      CHIP      tools/rp2350_pins.csv, erzeugt aus RP2350.svd.
+//                Jede Funktionsangabe unten ist dagegen geprueft.
+//      BRETT     der SCHALTPLAN, github.com/adafruit/Adafruit-Fruit-Jam-PCB,
+//                "Adafruit Fruit Jam.sch" -- Eagle-XML, also eine echte
+//                Netzliste und keine abgetippte Tabelle.  Am 10.10.2026
+//                ausgewertet: alle 48 GPIOs, jedes mit dem, was am
+//                anderen Ende haengt.
+//                Gegengelesen gegen die Boarddefinition von
+//                CircuitPython (mpconfigboard.h, pins.c), die aber nur
+//                sagt, was CIRCUITPYTHON benutzt -- und das ist weniger
+//                als das, was verbaut ist.  Drei Teile dieses Bretts
+//                tauchen dort gar nicht auf: der USB-Hub, die
+//                Busfreigabe fuer den ESP und der Infrarotempfaenger.
+//                Die beste Quellenlage, die wir je fuer ein Brett
+//                hatten.
+//      TREIBER   unsere eigenen Quellen, mit Datei und Zeile.
+//      ENTWURF   alles, was noch niemand gemessen hat.
+//
+//  STATE: GEPLANT.  Das Brett liegt da, der HDMI-Monitor kommt heute
+//  abend, und den HSTX-Treiber gibt es noch nicht.  Nichts hiervon ist
+//  gelaufen.
+//
+//////////////////////////////////////////////////////////////////////
+
+BOARD "fruitjam"   CHIP=RP2350B   FLASH=16M
+STATE  GEPLANT
+
+
+//====================================================================
+//  Was das Brett mitbringt
+//====================================================================
+
+// BRETT: pins.c, BUTTON2 = GPIO4.  Das Brett hat drei Taster:
+// Reset (kein GPIO), BOOT/Button1 an GP0 und zwei freie an GP4/GP5.
+//
+// PFLICHT, vor allem anderen: genau ein Pin je Brett traegt
+// ROLE=RESCUE.  Gehalten beim Einschalten, ignoriert die Maschine den
+// gespeicherten Satz und startet mit dem, was einkompiliert ist.
+//
+// Warum GP4 und nicht GP0: GP0 ist der BOOT-Taster und gehoert dem
+// Bootrom.  Ihn zu belegen hiesse, die einzige Ruecktuer zu
+// ueberladen, die auch dann noch funktioniert, wenn unser Code gar
+// nicht erst laeuft -- und genau die brauchen wir hier ein zweites
+// Mal (siehe PSRAM weiter unten).
+DEFINE BUTTON  (#0, KEY=GP4, ACTIVE=LOW, ROLE=RESCUE);
+// ENTWURF: ACTIVE=LOW ist die uebliche Beschaltung (Taster gegen
+// Masse, innerer Pull-up), aber nicht nachgelesen.  Vor dem ersten
+// Flashen mit dem Messgeraet oder einem Dreizeiler bestaetigen -- ein
+// Rettungspin, der verkehrt herum gelesen wird, rettet nie oder immer.
+
+DEFINE BUTTON  (#1, KEY=GP5, ACTIVE=LOW);   // frei, noch ohne Aufgabe
+
+// BRETT: pins.c, BUTTON1/BOOT = GPIO0.  Steht hier nicht, um benutzt
+// zu werden, sondern damit die Ampel ihn nicht gruen faerbt und luegt.
+DEFINE BUTTON  (#2, KEY=GP0, ACTIVE=LOW, ROLE=BOOTSEL);
+
+// SCHALTPLAN, Netz "LED": GP29 geht ueber R11 an die rote LED UND
+// ueber R32 an den Ausgang von O1, einem IRM-H6XXT
+// Infrarotempfaenger.  Die Boarddefinition nennt beides (LED = IR =
+// GPIO29), und es stimmt tatsaechlich: ein Pin, zwei Aufgaben.  Als
+// Ausgang getrieben leuchtet die LED, als Eingang gelesen hoert man
+// die Fernbedienung.  Beides zugleich geht nicht, und wer die LED
+// blinken laesst, waehrend er auf Infrarot wartet, misst sich selbst.
+DEFINE LED     (#0, USER=GP29);     // zugleich IR-Eingang, siehe oben
+
+// BRETT: mpconfigboard.h, MICROPY_HW_NEOPIXEL = GPIO32, COUNT 5.
+DEFINE LED     (#1, DATA=GP32);             // fuenf NeoPixel in Reihe
+
+// BRETT: mpconfigboard.h, CIRCUITPY_PSRAM_CHIP_SELECT = GPIO47.
+// CHIP: GP47 kann xip_ss_n_1 (f9, SVD) -- der QMI fuehrt CS1 ueberhaupt
+// nur auf GP0, GP8, GP19 oder GP47 heraus, und von diesen vieren ist
+// GP47 hier das einzige, das frei war: GP0 ist BOOT, GP8 der UART, GP19
+// eine HSTX-Leitung.  Die Wahl des Herstellers war also keine.
+//
+// DAS IST DER GEFAEHRLICHE WERT.  Am 05.10.2026 auf dem WeAct gemessen,
+// dasselbe Image dreimal gebaut:
+//     psram_cs=0   (dort richtig)  bootet, 16 MB Alt-RAM
+//     psram_cs=8   (falsch)        HardFault-Schleife
+//     psram_cs=47  (falsch)        HardFault-Schleife
+// In der Schleife greift der 1200-Baud-Reset nicht mehr, auf dem
+// gemflash.py beruht; zurueck kommt man nur ueber den BOOT-Knopf.
+// Bemerkenswert: 47 ist genau der Wert, der das WeAct aufhaengt, und
+// genau der, den dieses Brett braucht.  Dieselbe Zahl, zwei Bretter,
+// gegenteilige Wirkung -- deshalb steht sie im Satz und nicht im Build.
+DEFINE PSRAM   (CS=GP47);
+// Nebenwirkung: GP47 ist ADC7.  Einer der acht Analogkanaele ist damit
+// weg, bevor irgendwer irgendetwas anschliesst.
+
+
+//====================================================================
+//  Der Bildschirm -- und zum ersten Mal ohne einen einzigen Draht
+//
+//  HSTX ist die eine Peripherie, bei der die Pinfrage gar nicht
+//  gestellt wird: hstx_0..hstx_7 liegen fest auf GP12..GP19 (SVD), der
+//  Hersteller hat die HDMI-Buchse daran geloetet, und damit ist der
+//  gesamte Block rot.  Die acht Pins sind nicht "belegt", sie sind
+//  fort.  Das ist der Merksatz aus 13.7.1, nur diesmal nicht als
+//  Abwaegung, sondern als Tatsache.
+//====================================================================
+
+// BRETT: mpconfigboard.h, DEFAULT_DVI_BUS_*.  Zu beachten: hier liegt
+// immer das NEGATIVE Pin zuerst (GP12 = CKN, GP13 = CKP).  Auf dem
+// Pico-DVI-Sock, an dem sich das Beispiel in pico-examples orientiert,
+// ist es andersherum.  Das entscheidet ueber die INV-Bits in
+// hstx_ctrl_hw->bit[] und sonst nichts -- vertauscht sieht man kein
+// Bild und misst stundenlang den Takt.
+//
+// TREIBER: es gibt keinen.  Ein HSTX-DVI-Scanout ist eine neue ART
+// Geraet, also Neubau und nicht Konfiguration -- genau wie es beim
+// RGB-Panel gewesen waere.  Was dafuer gebraucht wird, steht unten.
+DEFINE DISPLAY (#0, TYPE=HSTX, CHIP=DVI,
+                    PANEL="hdmi-7in-1024x600",
+                    RES=400x240, FORMAT=RGB565, OUT=800x480,
+                    REFRESH=60, VRAM=STRAM,
+                    CKN=GP12, CKP=GP13,
+                    D0N=GP14, D0P=GP15,
+                    D1N=GP16, D1P=GP17,
+                    D2N=GP18, D2P=GP19,
+                    TIMING=(HS=48, HBP=64, HFP=40,
+                            VS=3,  VBP=29, VFP=13,
+                            HS_POL=LOW, VS_POL=LOW));
+//
+// WARUM 800x480 und nicht 640x480 -- und das ist ein Gluecksfall:
+//
+//     952 x 525 Pixel je Bild bei 30,000 MHz
+//         -> Zeilenfrequenz 31,51 kHz, Bildfrequenz 60,02 Hz
+//
+// Das ist bis auf zwei Promille GENAU der 800x480-Modus, den jedes
+// Raspberry-Pi-Panel spricht (31,50 kHz / 60,00 Hz).  Und 30,000 MHz
+// ist der Pixeltakt, den wir OHNE jede Aenderung an der Maschine
+// haben: pll_sys 150 MHz, CLK_HSTX_DIV = 1, geteilt durch 5.
+//
+// Bei 640x480 ginge das nicht auf -- dort braeuchte man 25,2 MHz, und
+// die sind aus 150 nicht ganzzahlig zu holen (siehe unten).  Das
+// breitere Bild ist hier also nicht der teurere, sondern der
+// BILLIGERE Weg.  Und es sind 25 % mehr Schreibtisch.
+//
+// WARUM RES=400x240 und OUT=800x480, und nicht gleich 800x480:
+//
+// Weil 800x480 in RGB565 768.000 Bytes sind und der Chip 520 KB SRAM
+// hat.  Es passt nicht.  In den PSRAM ginge es -- und kostete
+// 800*480*2*60 = 46,1 MB/s, also 123 % der QMI-Spitze von 37,5 MB/s.
+// Das ist dieselbe Wand, an der das EP5008S bei 55,5 Hz stand, nur
+// diesmal ohne die Moeglichkeit, die Bildrate zu senken: ein Monitor
+// nimmt keine 20 Hz an.
+//
+// 400x240 dagegen sind 192.000 Bytes, liegen bequem im ST-RAM, und der
+// Scanout liest 11,5 MB/s aus dem SRAM -- am QMI vorbei, ohne
+// Konkurrenz zum XIP-Code.  Jedes Pixel und jede Zeile gehen doppelt
+// hinaus, der Monitor sieht ein vollwertiges 800x480, und GEM rechnet
+// in 400x240.
+//
+// Und das ist der eigentliche Gewinn: 400x240 RGB565 unterscheidet
+// sich von dem, was pTOS heute macht, nur in der Breite -- und die
+// steht laengst im Satz (scr_w/scr_h in rp2350_settings.h).  VDI,
+// Farbformat, Framebufferverwaltung: alles bleibt.  Es aendert sich
+// NUR, wohin der Inhalt hinausgeschoben wird, plus zwei Zahlen im
+// NVRAM.  Von allen Wegen zu einem richtigen Bild ist das der
+// kuerzeste, den wir je hatten.
+//
+// Spaeter interessant: 800x480 mit 8 Bit und Palette sind 384.000
+// Bytes und passten knapp ins SRAM.  Das waere ein echter GEM-Desktop
+// in voller Aufloesung -- und sehr atarihaft -- kostet aber Palette
+// und Chunky-8-Bit im VDI.  Eine andere Sitzung.
+//
+// WARUM VRAM=STRAM ausgeschrieben und nicht AUTO: weil es hier keine
+// Abwaegung ist, sondern die Bedingung.  Im PSRAM waere das Bild nicht
+// nur unmoeglich, es verbote auch das Schreiben des Satzes im Betrieb
+// (23 ms ohne beide QSPI-Chip-Selects).  Steht es da, kann man es
+// nicht aus Versehen wegkonfigurieren.
+//
+// DER TAKT -- gerechnet, nicht geraten.  Und hier liegt der Grund,
+// warum oben 800x480 steht und nicht 640x480:
+//
+// Der Pixeltakt ist bei HSTX keine freie Groesse.  TMDS schickt 10 Bit
+// je Pixel, HSTX schiebt 2 Bit je Takt, also ist clk_hstx genau das
+// Fuenffache des Pixeltakts -- und CLK_HSTX_DIV hat nur ein INT-Feld
+// (SVD), kein FRAC.  Aus pll_sys 150 MHz kommt deshalb:
+//
+//     Teiler 1 -> clk_hstx 150,0 MHz -> Pixeltakt 30,000 MHz
+//     Teiler 2 ->           75,0     ->           15,000
+//     Teiler 3 ->           50,0     ->           10,000
+//
+// und nichts dazwischen.  30 MHz oder gar nichts, praktisch gesehen.
+// Was daraus wird:
+//
+//   OUT       FB        HTOT x VTOT   HSync      VSync
+//   800x480   400x240    952 x 525    31,51 kHz  60,02 Hz   <-- gewaehlt
+//   800x480   400x240    928 x 525    32,33 kHz  61,58 Hz
+//   640x480   320x240    800 x 625    37,50 kHz  60,00 Hz
+//   640x480   320x240    800 x 525    37,50 kHz  71,43 Hz
+//   720x400   360x200    900 x 555    33,33 kHz  60,06 Hz
+//   1024x600  512x300   1344 x 628    22,32 kHz  35,54 Hz
+//
+// Die erste Zeile trifft 31,50 kHz / 60,00 Hz -- genau die Raten des
+// gewoehnlichen 800x480-Modus, den jedes Pi-Panel kennt.  Die
+// 640x480-Zeilen muessen dagegen entweder 145 Leerzeilen schlucken
+// oder mit 71 Hz laufen; beides kann der Skalierer annehmen oder auch
+// nicht.  800x480 ist hier also der normalere Modus, nicht der
+// kuehnere.
+//
+// WAS NIEDRIGERE BILDRATEN HIER *NICHT* BRINGEN, und das ist ein
+// wichtiger Unterschied zum EP5008S: dort war die Bildrate der
+// Stellhebel, weil der Engpass die PSRAM-BANDBREITE war -- weniger
+// Bilder, weniger Bytes, und bei 20 Hz passte es.  Hier liegt der
+// Framebuffer im SRAM, die Bandbreite ist mit 11,5 MB/s kein Thema,
+// und der Engpass ist die KOERNUNG DES TAKTS.  Langsamer heisst dann
+// nicht "entspannter", sondern nur "mehr Leerzeilen": 30 Hz brauchten
+// bei 952 Spalten 1050 Zeilen, also 570 leere.  Die Zeilenfrequenz
+// faellt dabei unter das, was ein Skalierer ueberhaupt noch faengt.
+// Der Hebel, den man hier hat, ist nicht die Bildrate, sondern die
+// AUFLOESUNG -- und die zeigt nach oben, nicht nach unten.
+//
+// 1024x600, die native Aufloesung des Monitors, ist aus 30 MHz nicht
+// zu machen: 35,5 Hz und 22 kHz Zeilenfrequenz nimmt kein Geraet an.
+// Dafuer braeuchte es ~50 MHz Pixeltakt, also clk_hstx 253 MHz -- und
+// das liegt ueber dem, was Adafruit fuer HSTX angibt (640x480 oder
+// 720x400).  Der Monitor skaliert also in jedem Fall; die Frage ist
+// nur, von wo aus.
+//
+// Falls der Monitor den gewaehlten Modus doch nicht annimmt, gibt es
+// einen sicheren Rueckfallweg, der aber die ganze Maschine betrifft:
+// pll_sys auf 126 MHz (fbdiv 126 -> VCO 1512, postdiv 6x2), clk_hstx
+// = 126 bei Teiler 1, Pixeltakt 25,2 MHz, 640x480@60 nach Lehrbuch.
+// Preis: clk_sys faellt von 150 auf 126 MHz, 16 % weniger
+// Rechenleistung; der QMI-Teiler rechnet sich von allein neu
+// (memory.c:158, aus RP2350_CLK_SYS_HZ).  KEINE Uebertaktung -- 126
+// liegt unter den 150, mit denen wir heute laufen.  Zu wissen, dass
+// dieser Weg SICHER geht, ist mehr wert, als zu hoffen, dass der
+// erste reicht.
+
+// Der Touch des Monitors haengt NICHT an diesem Brett, sondern an
+// seinem eigenen USB-Stecker: kapazitiv, 5 Punkte, HID.  Dafuer
+// braeuchte das Brett einen USB-HOST, und den gibt es zwar
+// (GP1/GP2/GP11, unten), aber keinen Stack dafuer -- unser USB ist
+// heute ausschliesslich Device.  Also kein TOUCH in dieser Datei, und
+// der Zeiger kommt bis auf Weiteres aus gemview2.py.  Das war als
+// Stufe 3 eine Annehmlichkeit und ist jetzt der einzige Weg.
+
+
+//====================================================================
+//  Speicherkarte -- erstmals ein Slot auf dem Brett selbst
+//====================================================================
+
+// BRETT: mpconfigboard.h, DEFAULT_SD_*.  CHIP: GP34/35/36 sind
+// spi0_sclk / spi0_tx / spi0_rx (SVD) -- eine echte Hardwaregruppe,
+// nicht zusammengesuchte Pins.
+//
+// TREIBER: rp2350_spi.c:21..24 nimmt heute SPI1.  Hier muss es SPI0
+// sein; eine weitere der einbetonierten Stellen.
+//
+// Glueck gehabt bei CS: rp2350_spi.c:38 rechnet
+//     CS_BIT = 1 << (SD_CS_PIN - 32)
+// und greift in die "HI"-SIO-Register.  GP39 ist >= 32, passt also.
+// Mit GP5 waere es stillschweigend falsch gewesen.
+DEFINE SDCARD  (#0, SCK=GP34, MOSI=GP35, MISO=GP36, CS=GP39,
+                    DETECT=GP33);
+// GP37/GP38 gehoeren zum 4-Bit-SDIO-Modus desselben Slots.  Im
+// SPI-Modus sind sie frei -- aber nicht fuer immer: wer spaeter SDIO
+// will (viermal so breit), braucht sie wieder.  Darum hier erwaehnt
+// und nicht belegt.
+
+
+//====================================================================
+//  Der ESP32-C6 -- fest aufgeloetet, nicht gesockelt
+//====================================================================
+
+// SCHALTPLAN: U9 ist ein ESP32-C6-MINI, fest aufgeloetet.  Kein
+// Sockel, kein Platzhalter -- Connecty hat zum ersten Mal ein Funkteil
+// auf demselben Brett.  Und es ist DOPPELT angebunden, was die
+// Boarddefinition nicht verraet:
+//
+//     UART   GP8 -> U9.RXD0 direkt
+//            GP9 <- R28 <- U9.TXD0   (Reihenwiderstand, damit ein
+//                   Geraet auf der Stiftleiste die ESP-Leitung
+//                   uebersteuern kann)
+//     SPI    GP30 -> U9.IO22 (SCK), GP31 -> U9.IO21 (MOSI),
+//            U9.IO6 -> IC1 -> GP28 (MISO), freigegeben von GP46
+//
+// Fuer uns zaehlt der UART-Weg: CHIP GP8/GP9 sind uart1_tx / uart1_rx
+// (f2, SVD), das passt zu COM#1, dem "_UA1"-Cookie und damit dem Weg,
+// auf dem STiK ins Netz geht.  OB der C6 darauf antwortet, haengt an
+// seiner Firmware -- ESP-AT waere unser Fall, ESP-Hosted nicht.  Das
+// ist die erste Frage, die am lebenden Brett zu klaeren ist, und sie
+// entscheidet, ob Connecty hier fast fertig ist oder neu anfaengt.
+// TREIBER: rp2350_uart1.c:62 sagt heute GP4/GP5.  Hier ist GP4 der
+// Rettungstaster -- noch eine Stelle, die aus dem Build heraus muss.
+DEFINE COM     (#1, TX=GP8, RX=GP9);
+
+// Die vier Steuerleitungen, und drei davon tun mehr als ihr Name
+// sagt.  SCHALTPLAN, Netz fuer Netz:
+//
+//   GP46 ESP_CS    -> U9.IO7 UND IC1.!OE.  IC1 ist ein 74AHC1G125,
+//                     ein einzelner Tri-State-Puffer: er legt den
+//                     MISO des ESP nur dann auf GP28, wenn ESP_CS
+//                     aktiv ist.  Das Brett hat also einen
+//                     SCHIEDSRICHTER IN HARDWARE fuer genau das
+//                     Problem, das unsere Ampel sonst nur als
+//                     Vorbehalt vermerken kann -- deshalb ist der
+//                     SPI unten zu Recht gelb und nicht rot.
+//   GP22 PERIPH_RST -> U4.!RESET UND U9.EN.  EINE Leitung legt den
+//                     Audio-DAC und das Funkteil zugleich zurueck.
+//                     Wer sie als freien Ausgang nimmt, schaltet
+//                     beides ab und sucht den Fehler woanders.
+//   GP23 I2S_ESP_IRQ -> U4.GPIO1, U9.IO9/BOOT9 UND das Loetfeld
+//                     ESP_BOOT.  Das ist nicht nur ein Interrupt: IO9
+//                     ist beim C6 der Bootstrap-Pin.  GP22 tief,
+//                     GP23 tief, GP22 wieder hoch -- und der ESP
+//                     haengt in seinem ROM-Lader, erreichbar ueber
+//                     GP8/GP9.  Das Brett kann sein eigenes Funkteil
+//                     neu flashen, ohne dass ein Kabel dazukommt.
+//   GP3  ESP_BUSY  -> U9.IO18.  Nur das.
+//
+// DEFINE und nicht RESERVE, obwohl wir sie nicht benutzen: RESERVE
+// heisst "der Anwender nimmt sich das" und faerbt gelb, und gelb
+// hiesse "ein zweites Geraet darf mit".  Darf es nicht.
+DEFINE ESPLINK (#0, CS=GP46, IRQ=GP23, BUSY=GP3, RST=GP22);
+// GP46 ist ADC6.  Mit GP47 (PSRAM) sind damit zwei der acht
+// Analogkanaele weg, ohne dass jemand etwas angeschlossen haette.
+
+
+//====================================================================
+//  Der Rest, den das Brett schon vergeben hat
+//====================================================================
+
+// BRETT: mpconfigboard.h, DEFAULT_I2C_BUS_*.  CHIP: i2c0_sda/i2c0_scl
+// (f3, SVD).  Die STEMMA-QT-Buchse haengt daran -- GELB ist hier keine
+// Hoeflichkeit, sondern der Zweck der Buchse: I2C ist ein Bus, und
+// jedes weitere Geraet mit eigener Adresse darf mit.
+DEFINE I2C     (#0, SDA=GP20, SCL=GP21);
+
+// BRETT: pins.c, I2S_*.  TLV320DAC3100.  Fuer GEM heute ohne Bedeutung
+// -- aber vier Pins sind vier Pins, und ein Sketch, der sie frei
+// glaubt, findet einen Ton.
+DEFINE AUDIO   (#0, DATA=GP24, MCLK=GP25, BCLK=GP26, WS=GP27);
+
+// SCHALTPLAN: und hier stand in der ersten Fassung dieser Datei zu
+// wenig.  GP1/GP2 gehen nicht an eine Buchse, sondern an den
+// UPSTREAM-Port eines CH334F (X6) -- eines USB-Hubs mit eigenem
+// Quarz (Y2).  Dessen Ports 1 und 2 fuehren auf die beiden
+// USB-A-Buchsen X2 und X5, Port 3 liegt unbeschaltet.  Die zwei
+// gruenen LEDs an den Buchsen treibt der Hub selbst, nicht der
+// RP2350.
+//
+// Das aendert die Rechnung fuer den Zeiger erheblich: EIN
+// PIO-USB-Host, aber ZWEI Geraete gleichzeitig -- Tastatur UND Maus,
+// nicht Tastatur ODER Maus.  Der Preis ist, dass der Stack
+// Hub-Enumeration koennen muss, also TinyUSB-Host und nicht etwas
+// selbstgestricktes Kleines.
+//
+// GP11 schaltet die 5 V der Buchsen, ueber Q1 (N) auf T1 (P).  Nicht
+// die native USB-Peripherie -- die haengt an der USB-C-Buchse X3 und
+// ist unsere Konsole.
+//
+// Noch nicht in der Ampel, weil es den Treiber nicht gibt: ein
+// PIO-USB-Host belegt einen ganzen PIO-Block und den groesseren Teil
+// seiner 32 Instruktionsplaetze.  Wenn der Zeiger kommt, wird das
+// hier als BUS=PIOx mit INSTR= stehen muessen, sonst zaehlt der
+// Pruefer die Plaetze falsch.
+DEFINE USBHOST (#0, DP=GP1, DM=GP2, VBUS=GP11);
+// JP1, eine 1x2-Leiste, haengt direkt auf GP1/GP2 -- vor dem Hub.
+// Wer den Hub umgehen will, hat dort den Abgriff.
+
+// CHIP: spi1_sclk / spi1_tx / spi1_rx (SVD).  Getrennt von SPI0, an
+// dem die Karte haengt -- aber NICHT frei: der ESP32-C6 sitzt mit
+// drauf (SCHALTPLAN, siehe ESPLINK oben), und die Stiftleiste JP3
+// fuehrt dieselben drei Pins heraus.
+//
+// Ausnahmsweise ist GELB hier die volle Wahrheit und nicht nur eine
+// Hoffnung: der Puffer IC1 nimmt den ESP vom MISO, sobald GP46
+// losgelassen wird.  Das ist der Schiedsrichter, den unser
+// rp2350_spi.c nicht hat -- nur sitzt er diesmal auf der Platine.
+// Fuer SCK und MOSI gilt er allerdings nicht; die liegen hart
+// parallel, und wer taktet, taktet auch den ESP mit.
+DEFINE SPI     (#1, SCK=GP30, MOSI=GP31, MISO=GP28);
+
+
+//====================================================================
+//  Was uebrig bleibt
+//
+//  Nichts reserviert -- was die Ampel unten gruen zeigt, ist wirklich
+//  frei: die Stiftleistenpins GP6, GP7, GP10, die Analogreihe
+//  GP40..GP45 (A0 auf einer JST-PH-Buchse, A1..A5 auf der Leiste) und
+//  GP37/GP38, solange die Karte im SPI-Modus laeuft.
+//====================================================================

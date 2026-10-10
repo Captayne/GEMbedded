@@ -23,10 +23,26 @@ tools/*.log
 tools/consolelog.txt
 tools/dump.txt
 
-# vendor photos and drawings (Waveshare and shops): not ours to redistribute
+# Under Hardware/ only our own writing is kept.  Everything else there is
+# downloaded material -- vendor photos, datasheets, schematic exports, a
+# board zip, a video -- some two hundred megabytes of it, none of it ours
+# to redistribute, and all of it re-fetchable from the shop that sold the
+# board.  It lives in Hardware/vendor/ and stays out.
+#
+# What is kept is about three hundred kilobytes and irreplaceable: the
+# design document, the board profiles, and the notes written while
+# working something out.  Until today none of it was in the repository at
+# all, because this rule was a directory and a directory cannot have
+# exceptions -- git does not descend into it to find them.  Hence the
+# star.
+#
 # (anchored: Windows matches this without regard to case, and the Arduino
 #  board package has a "hardware" folder of its own)
-/Hardware/
+/Hardware/*
+!/Hardware/README.md
+!/Hardware/BoardRessourcesManager.md
+!/Hardware/profiles/
+!/Hardware/notes/
 
 # IRKernel licence files: per licensee, never per repository.  They carry a
 # name and a licence id, and a repository is what gets cloned and passed on.
