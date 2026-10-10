@@ -130,9 +130,10 @@ DEFINE DISPLAY (#0, TYPE=HSTX, CHIP=DVI,
                     D0N=GP14, D0P=GP15,
                     D1N=GP16, D1P=GP17,
                     D2N=GP18, D2P=GP19,
-                    TIMING=(HS=48, HBP=64, HFP=40,
-                            VS=3,  VBP=29, VFP=13,
-                            HS_POL=LOW, VS_POL=LOW));
+                    PLLSYS=147.5,
+                    TIMING=(HS=72, HBP=96, HFP=24,
+                            VS=10, VBP=7,  VFP=3,
+                            HS_POL=LOW, VS_POL=HIGH));
 //
 // WARUM 800x480 und nicht 640x480 -- und das ist ein Gluecksfall:
 //
@@ -183,65 +184,65 @@ DEFINE DISPLAY (#0, TYPE=HSTX, CHIP=DVI,
 // (23 ms ohne beide QSPI-Chip-Selects).  Steht es da, kann man es
 // nicht aus Versehen wegkonfigurieren.
 //
-// DER TAKT -- gerechnet, nicht geraten.  Und hier liegt der Grund,
-// warum oben 800x480 steht und nicht 640x480:
+// DER TAKT -- und hier hatte ich zuerst ein Problem gesehen, das
+// Adafruit gar nicht hat.
 //
-// Der Pixeltakt ist bei HSTX keine freie Groesse.  TMDS schickt 10 Bit
+// Der Pixeltakt ist bei HSTX keine freie Groesse: TMDS schickt 10 Bit
 // je Pixel, HSTX schiebt 2 Bit je Takt, also ist clk_hstx genau das
 // Fuenffache des Pixeltakts -- und CLK_HSTX_DIV hat nur ein INT-Feld
-// (SVD), kein FRAC.  Aus pll_sys 150 MHz kommt deshalb:
+// (SVD), kein FRAC.  Solange clk_sys und clk_hstx beide an pll_sys
+// haengen, ist der Pixeltakt damit eine Teilung von etwas, das
+// jemand anderem gehoert: aus 150 MHz kommen 30, 15, 10 -- und nichts
+// dazwischen.
 //
-//     Teiler 1 -> clk_hstx 150,0 MHz -> Pixeltakt 30,000 MHz
-//     Teiler 2 ->           75,0     ->           15,000
-//     Teiler 3 ->           50,0     ->           10,000
+// DIE AUFLOESUNG DES KNOTENS steht in Adafruits eigener Bibliothek
+// (Adafruit-DVI-HSTX, src/drivers/dvhstx/dvhstx.cpp:256ff) und ist
+// schlicht: clk_sys zieht um.
 //
-// und nichts dazwischen.  30 MHz oder gar nichts, praktisch gesehen.
-// Was daraus wird:
+//     pll_usb  auf 480 MHz   (VCO 1440, postdiv 3x1)
+//     clk_sys  = 480 / 2  = 240 MHz
+//     clk_peri = 480 / 4  = 120 MHz
+//     clk_usb  = 480 / 10 =  48 MHz   <- exakt, darauf kam es an
+//     pll_sys  = frei.  Gehoert ab jetzt dem Bildschirm.
 //
-//   OUT       FB        HTOT x VTOT   HSync      VSync
-//   800x480   400x240    952 x 525    31,51 kHz  60,02 Hz   <-- gewaehlt
-//   800x480   400x240    928 x 525    32,33 kHz  61,58 Hz
-//   640x480   320x240    800 x 625    37,50 kHz  60,00 Hz
-//   640x480   320x240    800 x 525    37,50 kHz  71,43 Hz
-//   720x400   360x200    900 x 555    33,33 kHz  60,06 Hz
-//   1024x600  512x300   1344 x 628    22,32 kHz  35,54 Hz
+// Damit ist pll_sys genau das, was der Modus braucht, und die Frage
+// "geht der Teiler auf" stellt sich nicht mehr.  Dafuer steht oben
+// PLLSYS=147.5 -- der Pruefer rechnet dann gegen diesen Wert und nicht
+// gegen die 150, die bisher fuer die ganze Maschine galten.
 //
-// Die erste Zeile trifft 31,50 kHz / 60,00 Hz -- genau die Raten des
-// gewoehnlichen 800x480-Modus, den jedes Pi-Panel kennt.  Die
-// 640x480-Zeilen muessen dagegen entweder 145 Leerzeilen schlucken
-// oder mit 71 Hz laufen; beides kann der Skalierer annehmen oder auch
-// nicht.  800x480 ist hier also der normalere Modus, nicht der
-// kuehnere.
+// DIE ZAHLEN, aus dvi.cpp:92 (ihr Kommentar: "I just used the output
+// of cvt 800 480 60", 295 MHz Bittakt):
+//     992 x 500 bei 29,500 MHz  ->  29,74 kHz / 59,48 Hz
+// Kein CEA-Modus, sondern ein erzeugter -- aber einer, den Adafruit
+// auf genau diesem Brett ausliefert.  Das ist mehr wert als ein
+// selbst gerechneter, und mein erster Entwurf (952 x 525 bei
+// 30,000 MHz, 31,51 kHz / 60,02 Hz) ist nur noch der Rueckfallweg
+// fuer den Fall, dass clk_sys aus irgendeinem Grund an pll_sys
+// bleiben muss.
 //
-// WAS NIEDRIGERE BILDRATEN HIER *NICHT* BRINGEN, und das ist ein
-// wichtiger Unterschied zum EP5008S: dort war die Bildrate der
-// Stellhebel, weil der Engpass die PSRAM-BANDBREITE war -- weniger
-// Bilder, weniger Bytes, und bei 20 Hz passte es.  Hier liegt der
-// Framebuffer im SRAM, die Bandbreite ist mit 11,5 MB/s kein Thema,
-// und der Engpass ist die KOERNUNG DES TAKTS.  Langsamer heisst dann
-// nicht "entspannter", sondern nur "mehr Leerzeilen": 30 Hz brauchten
-// bei 952 Spalten 1050 Zeilen, also 570 leere.  Die Zeilenfrequenz
-// faellt dabei unter das, was ein Skalierer ueberhaupt noch faengt.
-// Der Hebel, den man hier hat, ist nicht die Bildrate, sondern die
-// AUFLOESUNG -- und die zeigt nach oben, nicht nach unten.
+// WAS DAS FUER pTOS HEISST, und es ist nicht wenig: rp2350_board.c:148
+// baut heute pll_sys auf 150 und pll_usb auf 48, und RP2350_CLK_PERI_HZ
+// ist als gleich clk_sys definiert (rp2350.h:105).  Beides faellt.
+// Der QMI-Teiler rechnet sich von allein neu (memory.c:158), die
+// UART-Baudrate und die SPI-Teiler haengen aber an clk_peri und
+// muessen mitgezogen werden.  Ueberschaubar, aber kein Einzeiler --
+// und es waeren nebenbei 240 statt 150 MHz, also 60 % mehr Rechenzeit
+// statt der 16 % weniger, die ich vorher als Preis angenommen hatte.
 //
-// 1024x600, die native Aufloesung des Monitors, ist aus 30 MHz nicht
-// zu machen: 35,5 Hz und 22 kHz Zeilenfrequenz nimmt kein Geraet an.
-// Dafuer braeuchte es ~50 MHz Pixeltakt, also clk_hstx 253 MHz -- und
-// das liegt ueber dem, was Adafruit fuer HSTX angibt (640x480 oder
-// 720x400).  Der Monitor skaliert also in jedem Fall; die Frage ist
-// nur, von wo aus.
+// WAS NIEDRIGERE BILDRATEN HIER NICHT BRINGEN, und das ist der
+// Unterschied zum EP5008S: dort war die Bildrate der Stellhebel, weil
+// der Engpass die PSRAM-BANDBREITE war -- weniger Bilder, weniger
+// Bytes.  Hier liegt der Framebuffer im SRAM, 11,5 MB/s, das
+// interessiert niemanden.  Langsamer hiesse nur "mehr Leerzeilen",
+// bis die Zeilenfrequenz unter das faellt, was ein Skalierer faengt.
+// Der Hebel ist die AUFLOESUNG, und die zeigt nach oben.
 //
-// Falls der Monitor den gewaehlten Modus doch nicht annimmt, gibt es
-// einen sicheren Rueckfallweg, der aber die ganze Maschine betrifft:
-// pll_sys auf 126 MHz (fbdiv 126 -> VCO 1512, postdiv 6x2), clk_hstx
-// = 126 bei Teiler 1, Pixeltakt 25,2 MHz, 640x480@60 nach Lehrbuch.
-// Preis: clk_sys faellt von 150 auf 126 MHz, 16 % weniger
-// Rechenleistung; der QMI-Teiler rechnet sich von allein neu
-// (memory.c:158, aus RP2350_CLK_SYS_HZ).  KEINE Uebertaktung -- 126
-// liegt unter den 150, mit denen wir heute laufen.  Zu wissen, dass
-// dieser Weg SICHER geht, ist mehr wert, als zu hoffen, dass der
-// erste reicht.
+// 1024x600, die native Aufloesung des Monitors, braeuchte rund 50 MHz
+// Pixeltakt.  Mit einem freien pll_sys ist das nicht mehr an unserem
+// Takt gescheitert -- die Bibliothek fuehrt 512x384 -> 1024x768@60 als
+// "well supported", also kann HSTX es.  Es scheitert am Speicher:
+// 512x300 waeren 307.200 B, und dann ist das SRAM voll.  Spaeter,
+// vielleicht mit 8 Bit und Palette.
 
 // Der Touch des Monitors haengt NICHT an diesem Brett, sondern an
 // seinem eigenen USB-Stecker: kapazitiv, 5 Punkte, HID.  Dafuer

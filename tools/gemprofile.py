@@ -177,6 +177,7 @@ QMI_PEAK_BYTES = 75e6 * 4 / 8
 TMDS_BITS_PER_PIXEL = 10
 HSTX_BITS_PER_CLK = 2
 PLL_SYS_HZ = 150e6          # bios/machine/rp2350/rp2350_board.c:148
+# ... unless the display says PLLSYS=, see evaluate_display()
 
 
 def evaluate_display(f, out):
@@ -252,35 +253,57 @@ def evaluate_display(f, out):
         # was in seinen Bereich faellt -- 60,02 statt 60,00 merkt
         # niemand.  Auf exakter Teilbarkeit zu bestehen hiesse, den
         # einzigen brauchbaren Modus zu verwerfen.
-        best = max(1, int(round(PLL_SYS_HZ / want)))
-        got = PLL_SYS_HZ / best
+        # PLLSYS= says this display owns pll_sys: clk_sys has been moved
+        # onto pll_usb (480 MHz, which still divides to exactly 48 for
+        # USB), and the system PLL is then free to be whatever the
+        # picture needs.  Adafruit's own HSTX library does this, and it
+        # dissolves the whole question -- the pixel clock stops being a
+        # division of a clock that belongs to something else.  Without
+        # the field the old assumption holds: one PLL for both, and the
+        # divisor has to come out whole.
+        pll = PLL_SYS_HZ
+        own = f.get("PLLSYS")
+        if own:
+            try:
+                pll = float(own) * 1e6
+            except ValueError:
+                out.append("  ! PLLSYS=%s ist keine Zahl in MHz" % own)
+                own = None
+        if own:
+            out.append("    PLLSYS=%s -> pll_sys gehoert dem Bildschirm;"
+                       " clk_sys kommt dann von pll_usb (480 MHz, das"
+                       " trifft die 48 fuer USB exakt)." % own)
+
+        best = max(1, int(round(pll / want)))
+        got = pll / best
         real = got / (TMDS_BITS_PER_PIXEL / HSTX_BITS_PER_CLK) / (htot * vtot)
         off = (real / float(hz) - 1.0) * 100.0
         if abs(off) <= 1.0:
-            out.append("    pll_sys %.0f MHz / %d -> clk_hstx %.3f MHz ->"
+            out.append("    pll_sys %.3f MHz / %d -> clk_hstx %.3f MHz ->"
                        " wirklich %.2f Hz (%+.2f %% gegen die"
                        " angeschriebenen %s)"
-                       % (PLL_SYS_HZ / 1e6, best, got / 1e6, real, off, hz))
+                       % (pll / 1e6, best, got / 1e6, real, off, hz))
             out.append("    i Zeilenfrequenz %.2f kHz -- das ist die Zahl,"
                        " auf die ein Skalierer einrastet."
                        % (got / 5 / htot / 1e3))
         else:
-            out.append("  ! daneben: pll_sys %.0f MHz / %d ergibt %.2f Hz"
+            out.append("  ! daneben: pll_sys %.3f MHz / %d ergibt %.2f Hz"
                        " statt %s (%+.1f %%).  CLK_HSTX_DIV kann nur"
                        " ganzzahlig teilen (SVD), der Pixeltakt ist also"
                        " keine freie Groesse.  Erreichbar waere:"
-                       % (PLL_SYS_HZ / 1e6, best, real, hz, off))
+                       % (pll / 1e6, best, real, hz, off))
             for d in (1, 2, 3, 4):
                 out.append("      Teiler %d -> clk_hstx %6.1f MHz ->"
                            " Pixeltakt %6.3f MHz -> %6.2f Hz bei %dx%d"
-                           % (d, PLL_SYS_HZ / d / 1e6,
-                              PLL_SYS_HZ / d / 5 / 1e6,
-                              PLL_SYS_HZ / d / 5 / (htot * vtot), htot, vtot))
+                           % (d, pll / d / 1e6, pll / d / 5 / 1e6,
+                              pll / d / 5 / (htot * vtot), htot, vtot))
             out.append("    Entweder HTOT/VTOT auf einen dieser Takte"
                        " rechnen, oder pll_sys auf %.0f MHz stellen und"
                        " Teiler 1 nehmen -- und das ist eine Entscheidung"
-                       " ueber die ganze Maschine, nicht ueber den"
-                       " Bildschirm." % (want / 1e6))
+                       " ueber die ganze Maschine -- oder PLLSYS=%.3f"
+                       " schreiben und clk_sys auf pll_usb legen, dann"
+                       " ist es nur noch eine ueber den Bildschirm."
+                       % (want / 1e6, want / 1e6))
 
     # --- wo der Framebuffer landet, und was das kostet -----------------
     stram = 456 * 1024
