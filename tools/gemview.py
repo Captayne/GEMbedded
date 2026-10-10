@@ -48,8 +48,15 @@ import struct
 import sys
 import threading
 import time
-import tkinter as tk
-from tkinter import filedialog, messagebox
+try:
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+except ImportError:
+    # Only the window needs tkinter.  The protocol -- Machine,
+    # rgb565_to_rgb, write_png -- does not, and gemshot.py borrows
+    # exactly that, so a Python without tkinter can still take a
+    # screenshot of a machine with no display attached at all.
+    tk = None
 import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -388,6 +395,10 @@ def main():
     except Exception as e:
         print("no machine: %s" % e)
         return 1
+
+    if tk is None:
+        sys.exit("gemview: this Python has no tkinter, so there can be "
+                 "no window.  gemshot.py needs none and still works.")
 
     root = tk.Tk()
     App(root, machine, a.dir)
