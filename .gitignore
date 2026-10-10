@@ -64,6 +64,16 @@ __pycache__/
 Emulators/
 docs/*.pdf
 
+# Proxy/ holds WebOne: somebody else's program, fetched rather than
+# written here -- the release build in Webone_installed/ and a clone of
+# its source in Webone_repo/.  Neither is ours to redistribute, and
+# between them they weigh more than everything else in this repository
+# put together.  What belongs to us is the configuration, which is named
+# below.
+Proxy/*
+!Proxy/README.md
+!Proxy/webone.local.conf
+
 # Under GEM/ we keep what is ours and what we are free to pass on.  The
 # rest is other people's source, cloned to work from, along with the build
 # trees and the media that go with it.  A list of what to leave out would

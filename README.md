@@ -80,7 +80,10 @@ night.
   machine, fetching over that radio through the operating system's own STiK
   transport — the same interface every Atari program that ever reached a
   network looks for, so providing it turned a port into a recompile. It has
-  no TLS of its own, so https goes through a proxy.
+  no TLS of its own, so https goes through a proxy on the desk --
+  [WebOne](Proxy/README.md), which puts the German Wikipedia article on the
+  Atari ST onto a machine whose operating system is a reimplementation of
+  one from 1985.
   [**GEM/highwire-notes/**](GEM/highwire-notes/README.md) is the port, in full.
 
 ![HighWire running on the machine, with the Wi-Fi module beside it](docs/images/HIGHWIRE4ARM.jpg)
@@ -172,9 +175,10 @@ whole of it.
 
 It is a young port and it says so plainly. The display is 320×240 today,
 though the PSRAM is there for considerably more. There is no sound. The
-network is an AT module rather than a stack, and it speaks no TLS.
-A browser runs on it, and reaches the web, but the web it reaches is the
-part still served over plain http -- or whatever a proxy hands down. Plenty of TOS software will not
+network is an AT module rather than a stack, one connection at a time,
+and it speaks no TLS of its own -- https needs the proxy, and the proxy
+has to be running.  A browser runs on it and reaches the web, slowly:
+115200 baud is 115200 baud, and a modern page is a lot of bytes. Plenty of TOS software will not
 run, because plenty of TOS software wants hardware this machine does not have.
 
 What does work, works properly — and two bugs found along the way went back

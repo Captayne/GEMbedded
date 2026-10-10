@@ -96,12 +96,20 @@ on UART1, on 10 October 2026:
 * **fetches over the network**: `http://example.com` returns 200 and is
   rendered, through `src/inet.c` to the `STiK` cookie to
   `rp2350_stik.c` to the ESP
+* **and https, through a proxy.** With `HTTP_PROXY` set to a WebOne on
+  the desk, `https://de.wikipedia.org/wiki/Atari_ST` is fetched and
+  rendered. [`Proxy/README.md`](../../Proxy/README.md) is the setup.
+
+  ![The German Wikipedia article on the Atari ST, over https](../../docs/images/highwire-wikipedia-https.png)
 
 Not there:
 
-* **no https.** HighWire has no TLS. An address that redirects to https
-  ends in an error page naming the remedy, which is a proxy that
-  terminates it -- `Proxy/` has WebOne for exactly that.
+* **no TLS of its own**, so https needs that proxy. Without one, an
+  https address ends in an error page naming the cause and the remedy
+  rather than dialling cleartext at port 443. HighWire puts the whole
+  absolute URI on the request line rather than opening a `CONNECT`
+  tunnel, so the proxy has to be one that serves those -- WebOne calls
+  it CERN-compatible and does both.
 * one connection at a time, and no UDP. Both are limits of the AT module
   and both refuse honestly rather than hanging.
 * the pointer is the touch panel. Keyboard shortcuts arrive over the USB
