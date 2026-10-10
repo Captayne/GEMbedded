@@ -129,7 +129,7 @@ Beim EP5008S scannt der DMA in dieser Zeit aus dem PSRAM. 23 ms sind bei 30 Hz e
 
 **Nicht die Uhr zählen, sondern auf das Öffnen des Ports warten.** USB-CDC ist in Sekunde 0 noch nicht da; Enumeration und das Öffnen durch den Host brauchen ihrerseits etwa eine Sekunde. Wer sich anhängt, nachdem das Fenster zu war, sieht sonst nur Stille.
 
-**Zusätzlich eine Tür aus Hardware.** Eine gehaltene Taste ist der einzige Weg hinein, der auch funktioniert, wenn USB verwirrt ist. **Welcher Pin, ist offen** — die bisherige Antwort (`GP23 User Button`) stammt aus dem Carrier-Entwurf und ist damit keine. Am echten Brett nachsehen; hat es keine Taste, bleibt nur der USB-Weg.
+**Eine Tür aus Hardware gibt es auch — aber nicht von uns.** Der Gedanke war eine gehaltene Taste, die den gespeicherten Satz ignoriert. Dagegen sprach, dass sie von genau der Firmware gelesen werden muss, gegen die sie schützt, dass sie auf jedem Brett einen freien GPIO verlangt, und dass der Vorgabewert auf der laufenden Waveshare auf der Reset-Leitung des Displays landete. Die Tür, die all das nicht braucht, ist der BOOT-Knopf des Bootroms: er läuft, wenn pTOS nicht mehr läuft, er ist auf jedem Brett, und jeder kennt ihn. Was ihm fehlte, war das Löschen eines schlechten Satzes — ein UF2 des Abbildes schreibt das Abbild und lässt die obersten zwei Sektoren stehen. Das macht jetzt `tools/gemwipef.py --settings`.
 
 **Die Wartezeit ist ein Feld.** `0` = nie warten, Eintritt nur über die Taste. Ein Maschinenbedienpanel oder eine Waschmaschine darf nicht fünf Sekunden warten, ob jemand etwas tippen will. Tischgerät 5 s, eingebautes Gerät 0.
 
@@ -410,7 +410,7 @@ Ein Interpret dafür sind dreißig Zeilen. Der Gewinn ist unverhältnismäßig: 
 Ein verkehrtes Timing an einem parallelen RGB-Panel erzeugt keine Fehlermeldung, sondern ein schwarzes Bild. Drei Dinge gehören deshalb dazu:
 
 - **die USB-Konsole als Rettungsleine** — funktioniert ohne jedes Display, und funktioniert heute schon
-- **eine eingebaute Standardbeschreibung** plus Taste beim Booten, die den Satz ignoriert
+- **eine eingebaute Standardbeschreibung**, auf die man ohne Werkzeug zurückfällt: BOOT halten, `gemwipef.py --settings`, und der gespeicherte Satz ist weg
 - **die gerechneten Zahlen ausgeben**: DCLK, H/V-Totale, Framebufferadresse und -größe. Dann prüft man seine Beschreibung gegen das Datenblatt, ohne ein Oszilloskop zu besitzen.
 
 ---

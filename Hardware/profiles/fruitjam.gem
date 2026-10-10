@@ -44,25 +44,25 @@ STATE  GEPLANT
 //  Was das Brett mitbringt
 //====================================================================
 
-// BRETT: pins.c, BUTTON2 = GPIO4.  Das Brett hat drei Taster:
-// Reset (kein GPIO), BOOT/Button1 an GP0 und zwei freie an GP4/GP5.
-//
-// PFLICHT, vor allem anderen: genau ein Pin je Brett traegt
-// ROLE=RESCUE.  Gehalten beim Einschalten, ignoriert die Maschine den
-// gespeicherten Satz und startet mit dem, was einkompiliert ist.
-//
-// Warum GP4 und nicht GP0: GP0 ist der BOOT-Taster und gehoert dem
-// Bootrom.  Ihn zu belegen hiesse, die einzige Ruecktuer zu
-// ueberladen, die auch dann noch funktioniert, wenn unser Code gar
-// nicht erst laeuft -- und genau die brauchen wir hier ein zweites
-// Mal (siehe PSRAM weiter unten).
-DEFINE BUTTON  (#0, KEY=GP4, ACTIVE=LOW, ROLE=RESCUE);
-// ENTWURF: ACTIVE=LOW ist die uebliche Beschaltung (Taster gegen
-// Masse, innerer Pull-up), aber nicht nachgelesen.  Vor dem ersten
-// Flashen mit dem Messgeraet oder einem Dreizeiler bestaetigen -- ein
-// Rettungspin, der verkehrt herum gelesen wird, rettet nie oder immer.
-
+// SCHALTPLAN: BTN3 an GP4, BTN2 an GP5, beide gegen Masse.  Dazu
+// BTN0 an GP0 (BOOT) und ein Reset-Knopf ohne GPIO.
+// ENTWURF: ACTIVE=LOW ist die uebliche Beschaltung, am Schaltplan aber
+// nicht bis zum Pull-up nachverfolgt.
+DEFINE BUTTON  (#0, KEY=GP4, ACTIVE=LOW);   // frei, noch ohne Aufgabe
 DEFINE BUTTON  (#1, KEY=GP5, ACTIVE=LOW);   // frei, noch ohne Aufgabe
+
+// Der Weg zurueck, wenn der gespeicherte Satz die Maschine nicht mehr
+// starten laesst (ein falscher PSRAM-CS faellt nicht nur ohne Alt-RAM
+// an, er faellt hart):
+//     BOOT gedrueckt halten, einstecken, dann
+//     python3 tools/gemwipef.py --settings
+// Das loescht die zwei obersten Flash-Sektoren, in denen der Satz
+// liegt, und die Maschine startet wieder mit dem, was einkompiliert
+// ist.  Ein blosses Neuflashen genuegt NICHT: ein UF2 des Abbildes
+// schreibt das Abbild, und der Satz liegt darueber.
+// Es gab hier einmal einen Rettungspin.  Den braucht es nicht: das
+// Bootrom laeuft, wenn pTOS es nicht mehr tut, es ist auf jedem Brett,
+// und es verlangt keinen freien GPIO.
 
 // BRETT: pins.c, BUTTON1/BOOT = GPIO0.  Steht hier nicht, um benutzt
 // zu werden, sondern damit die Ampel ihn nicht gruen faerbt und luegt.

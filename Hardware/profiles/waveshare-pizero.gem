@@ -63,45 +63,26 @@ DEFINE DISPLAY (#0, TYPE=SPI, BUS=PIO1, INSTR=2, CHIP=ILI9341,
                     SCK=GP10, MOSI=GP11, CS=GP24, DC=GP25,
                     RST=GP23, LED=GP21);
 
-// !!! BEFUND 1, beim Schreiben dieses Profils gefunden !!!
+// Dieses Profil hat zwei Befunde zutage gefoerdert, und beide sind
+// inzwischen erledigt -- durch Abschaffen, nicht durch Reparieren:
 //
-// GP23 ist hier der Display-Reset (rp2350_lcd.c:46) -- und zugleich
-// der Vorgabewert von CONF_RP2350_RESCUE_PIN (bios/Kconfig:495,
-// default 23).  Auf dieser Maschine ist der Rettungspin also die
-// Reset-Leitung des Bildschirms.
+//   1  GP23 war hier zugleich Display-Reset UND der Vorgabewert von
+//      CONF_RP2350_RESCUE_PIN.  Auf diesem Brett gab es also keinen
+//      Weg, die Rettungstuer zu oeffnen, und haette das Modul seinen
+//      RST beim Einschalten kurz tief gehalten, haette die Maschine
+//      still ihren gespeicherten Satz verworfen.
+//   2  rescue_held() las SIO_GPIO_IN, das Register fuer GP0..GP31,
+//      waehrend Kconfig Pins bis 47 erlaubte.  Bei GP40 optimierte der
+//      Compiler den Registerzugriff weg und gab die Konstante 1 zurueck
+//      -- "Taste gehalten", bei jedem Start, fuer immer.
 //
-// Was dabei wirklich passiert: rescue_held() (rp2350_nvram.c:312) legt
-// GP23 als Eingang mit innerem Pull-up, wartet, und liest.  Es TREIBT
-// nichts, der Bildschirm nimmt also keinen Schaden.  Aber:
-//
-//   - Haelt das Displaymodul seinen RST beim Einschalten kurz tief
-//     (manche haben ein RC-Glied), liest die Maschine "Taste
-//     gehalten" und IGNORIERT STILL IHREN GESPEICHERTEN SATZ.
-//     Niemand drueckt etwas, und trotzdem starten die Vorgaben.
-//   - Umgekehrt gibt es auf diesem Brett ueberhaupt keinen Weg, den
-//     Rettungsmechanismus absichtlich auszuloesen.  Die eine
-//     Sicherung, die wir als PFLICHT erklaert haben, ist hier nicht
-//     bedienbar.
-//
-// Bisher unauffaellig, weil der Satz auf dieser Maschine noch nie
-// beschrieben wurde -- Vorgaben und Satz sind dasselbe, also faellt
-// es nicht auf.  Das aendert sich mit dem ersten GEMSET.
-// Zu tun: CONF_RP2350_RESCUE_PIN fuer dieses Brett auf einen freien
-// Pin legen oder auf -1 (aus), und den Vorgabewert 23 in Kconfig
-// ueberdenken -- er stammt vom WeAct und passt nur dort.
-
-// !!! BEFUND 2, derselbe Anlass !!!
-//
-// rescue_held() liest RP2350_SIO_GPIO_IN -- das ist das Register der
-// UNTEREN Bank, GP0..GP31.  Fuer GP32..GP47 braeuchte es
-// SIO_GPIO_HI_IN.  Kconfig erlaubt aber "range -1 47"
-// (bios/Kconfig:496).  Wer also GP40 als Rettungspin eintraegt,
-// bekommt eine Verschiebung um 40 Stellen auf einem 32-Bit-Wert, also
-// undefiniertes Verhalten -- und die Tuer, die im Notfall aufgehen
-// muss, geht nie auf oder immer.
-// Das Muster fuer die Reparatur steht schon im Baum: memory.c macht
-// CS_PIN_LEVEL() genau deshalb zum parametrisierten Makro, das die
-// Bank zur Laufzeit waehlt.
+// Beides ist weg, weil der Mechanismus weg ist.  Der Weg zurueck aus
+// einem Satz, der die Maschine nicht mehr starten laesst:
+//     BOOT gedrueckt halten, einstecken, dann
+//     python3 tools/gemwipef.py --settings
+// Das loescht die zwei obersten Flash-Sektoren, in denen der Satz
+// liegt.  Ein blosses Neuflashen genuegt nicht -- ein UF2 des Abbildes
+// schreibt das Abbild, und der Satz liegt darueber.
 
 // TREIBER: rp2350_touch.c:37..41.  SPI0 (PL022), 2,4 MHz.
 // Eigener Bus und nicht am Display: andere Instanz, anderer Takt.

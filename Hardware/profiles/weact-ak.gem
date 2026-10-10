@@ -39,33 +39,25 @@ STATE  VERDRAHTET                 // Betriebsart A gebaut, B noch nicht
 //====================================================================
 
 // TREIBER: keiner.  Hardware des Bretts, vom Hersteller.
-// Der Key-Taster ist zugleich die Hardwaretuer ins BIOS-Setup (Abschnitt
-// 4.1): eine gehaltene Taste ist der einzige Weg hinein, der auch dann
-// funktioniert, wenn USB verwirrt ist -- und seit heute wissen wir, dass
-// es diesen Weg geben MUSS: ein falscher PSRAM-CS-Pin haengt die
-// Maschine so auf, dass der 1200-Baud-Reset nicht mehr greift.
-DEFINE BUTTON  (#0, KEY=GP23, ACTIVE=LOW, ROLE=RESCUE);
-//                                       ^^^^^^^^^^^^
-// PFLICHT, und zwar vor allem anderen.  Genau ein Pin je Brett muss
-// ROLE=RESCUE tragen: gehalten beim Einschalten, ignoriert die
-// Maschine den gespeicherten Satz und startet mit dem, was
-// einkompiliert ist.
-//
-// Warum das keine Annehmlichkeit ist, sondern die Voraussetzung
-// dafuer, dass man den Satz ueberhaupt beschreiben darf: am
-// 05.10.2026 gemessen, dasselbe Image dreimal gebaut --
-//     psram_cs=0  (richtig)   bootet, 16 MB Alt-RAM
-//     psram_cs=8  (falsch)    HardFault-Schleife
-//     psram_cs=47 (falsch)    HardFault-Schleife
-// In der Schleife greift auch der 1200-Baud-Reset nicht mehr, auf dem
-// gemflash.py beruht.  Ohne diesen Pin kostet ein Vertipper im Satz
-// den BOOT-Knopf und ein Neuflashen; mit ihm einen Tastendruck.
-//
-// Der Pin muss ein schlichter GPIO mit innerem Pull-up sein und gegen
-// Masse gehen -- er wird gelesen, bevor irgendetwas aus dem Satz
-// angewandt wird, also darf er von nichts darin abhaengen.
-// Hat ein Brett keinen Taster, genuegt ein erreichbarer Pin, den man
-// mit einem Draht auf Masse ziehen kann.  Keinen zu haben genuegt nicht.
+// Das WeAct hat drei Taster: Reset, Boot und Key an GP23, dazu eine
+// User-LED an GP25.  Reset und Boot haengen nicht an GPIOs, die
+// anderen beiden schon -- und ohne diese zwei Zeilen faerbt die Ampel
+// sie gruen und luegt.
+DEFINE BUTTON  (#0, KEY=GP23, ACTIVE=LOW);
+
+// Der Weg zurueck, wenn der gespeicherte Satz die Maschine nicht mehr
+// starten laesst (ein falscher PSRAM-CS faellt nicht nur ohne Alt-RAM
+// an, er faellt hart):
+//     BOOT gedrueckt halten, einstecken, dann
+//     python3 tools/gemwipef.py --settings
+// Das loescht die zwei obersten Flash-Sektoren, in denen der Satz
+// liegt, und die Maschine startet wieder mit dem, was einkompiliert
+// ist.  Ein blosses Neuflashen genuegt NICHT: ein UF2 des Abbildes
+// schreibt das Abbild, und der Satz liegt darueber.
+// Es gab hier einmal einen Rettungspin.  Den braucht es nicht: das
+// Bootrom laeuft, wenn pTOS es nicht mehr tut, es ist auf jedem Brett,
+// und es verlangt keinen freien GPIO.
+
 DEFINE LED     (#0, USER=GP25);             // WeAct User-LED
 
 //====================================================================
