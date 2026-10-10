@@ -1,0 +1,13 @@
+*.prg
+build/
+dist/
+*.bak
+*.orig
+*.o
+*.a
+!/lib/**/*.a
+*.ovl
+.DS_Store
+tmp/
+.vscode/
+.kilo/

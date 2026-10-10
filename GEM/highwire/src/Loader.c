@@ -1,0 +1,1507 @@
+/* @(#)highwire/Loader.c
+ *
+ * Currently has ended up a junk file of initializations
+ * loading routine and some assorted other routines
+ * for file handling.
+*/
+#ifdef __PUREC__
+# include <tos.h>
+# include <ext.h>
+#endif
+#ifdef __GNUC__
+# include <osbind.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#include <gem.h>
+
+#include "file_sys.h"
+#include "global.h"
+#include "Logging.h"
+#include "hwWind.h"
+#include "vaproto.h"
+/* #include "av_comm.h" */
+#include "schedule.h"
+#include "Containr.h"
+#include "Location.h"
+#include "Loader.h"
+#include "parser.h"
+#include "http.h"
+#include "inet.h"
+#include "cache.h"
+
+
+extern short av_shell_id;     /* Desktop's AES ID */
+extern short av_shell_status;  /* What AV commands can desktop do? */
+             
+extern const char * cfg_Viewer;
+
+
+char fsel_path[HW_PATH_MAX];
+char help_file[HW_PATH_MAX];
+
+
+static short  start_application (const char * appl, LOCATION loc);
+
+/* There is no TLS in the browser, so https is spoken only to a proxy that
+ * terminates it for us: 'GET https://host/path' on the request line, no CONNECT
+ * tunnel.  Without a proxy a https location has nowhere to go -- dialling it as
+ * cleartext http would just hang against port 443.
+ * A function rather than one of Location.h's PROTO_ macros: those are pure
+ * tests on the enum, this one asks another module what it is configured with. */
+static BOOL
+proto_isFetchable (LC_PROTO proto)
+{
+	return (proto == PROT_HTTP || (proto == PROT_HTTPS && http_hasProxy()));
+}
+
+
+/*______________return_values_of_scheduled_jobs,_controlling_their_priority___*/
+#define JOB_KEEP 1  /* restart again later and doesn't change priority   */
+#define JOB_AGED -1 /* restart, but decrease the prio a bit because the job is
+                     * running already a bit longer now   */
+#define JOB_NOOP -2 /* restart also, but decrease the priority much more because
+                     * this job didn't got anything to do (was stalled)   */
+#define JOB_DONE 0  /* job is done, remove from list and don't start it again */
+
+/*____________________________________________priorities_for_following_jobs___*/
+#define PRIO_INTERN   200   /* internal produced pages like error pages, about,
+                      * dir listings etc, get the highest priority in general */
+#define PRIO_USERACT  100   /* start of loading something initiated by a user
+                      * action, normally a link clicked.  this should have be
+                      * the next highest value   */
+#define PRIO_AUTOMATIC 10   /* start loading some part of a page, usually a
+                      * frame */
+#define PRIO_TRIVIAL    1   /* start loading some object, usually an image   */
+#define PRIO_RECIVE    20   /* begin receiving data from remote   */
+#define PRIO_SUCCESS   91   /* decode a file, usually an image    */
+#define PRIO_LOADFILE  95   /* load a local file into memory      */
+#define PRIO_FINISH    99   /* decode from memory, usually html or text   */
+#define PRIO_KEEP       0   /* generic, when nothing from above matches   */
+
+static int loader_job  (void * arg, long invalidated);
+static int header_job  (void * arg, long invalidated);
+static int receive_job (void * arg, long invalidated);
+static int generic_job (void * arg, long invalidated);
+
+
+/*----------------------------------------------------------------------------*/
+/* Build one of the little internal error documents and schedule it. */
+static void
+error_page (LOADER loader, CONTAINR target,
+            const char * head, const char * body)
+{
+	const char fmt[] = "<html><head><title>Error</title></head><body>"
+	                   "<h1>%s</h1>%s%s%s</body></html>";
+	char buf [sizeof(fmt) + 512];  /* callers pass literals; 512 covers them */
+
+	sprintf (buf, fmt, head, (body ? "<p>" : ""), (body ? body : ""),
+	                        (body ? "</p>" : ""));
+	loader->Error    = -EPROTONOSUPPORT;
+	loader->Data     = strdup (buf);
+	loader->MimeType = MIME_TXT_HTML;
+	sched_insert (parse_html, new_parser (loader), (long)target, PRIO_INTERN);
+}
+
+
+/*----------------------------------------------------------------------------*/
+/* Next occurrence of tag, case blind.  The single character test rejects
+ * almost every '<' in a document before the call to strnicmp. */
+static char *
+find_tag (char * p, char * end, const char * tag, size_t tlen, char next)
+{
+	while ((p = memchr (p, '<', end - p)) != NULL) {
+		if ((p[1] | 0x20) == next && strnicmp (p, tag, tlen) == 0) {
+			return p;
+		}
+		p++;
+	}
+	return NULL;
+}
+
+/* Drop <script> bodies out of the buffer, in place, before the cap below is
+ * measured.  render_SCRIPT_tag() already steps over them without building
+ * anything, so this buys no parse time -- but on a modern page the scripts are
+ * most of the bytes, and counting them against MAX_DOCUMENT would truncate the
+ * real content long before it needed to be.
+ * A script body ends at the first '</script' whether or not it is inside a
+ * quoted string, so a plain search is the correct rule here.
+*/
+static size_t
+strip_scripts (char * data, size_t len)
+{
+	char * rd  = data;
+	char * wr  = data;
+	char * end = data + len;
+
+	while (rd < end) {
+		char * lt = rd;
+		char * body;
+
+		/* an element whose name merely starts with 'script' is not one */
+		while ((lt = find_tag (lt, end, "<script", 7, 's')) != NULL
+		       && !(lt[7] == '>' || lt[7] == '/' || isspace (lt[7]))) {
+			lt++;
+		}
+		if (!lt) {
+			break;              /* no more scripts: the tail is copied below */
+		}
+		if (wr != rd) memmove (wr, rd, lt - rd);
+		wr += lt - rd;
+
+		if ((body = find_tag (lt +7, end, "</script", 8, '/')) == NULL) {
+			rd = end;           /* unterminated, as the parser would treat it */
+			break;
+		}
+		body += 8;
+		while (body < end && *body != '>') body++;
+		if (body < end) body++;
+		rd = body;
+	}
+	if (wr != rd) memmove (wr, rd, end - rd);
+	wr += end - rd;
+	*wr = '\0';
+
+	return (size_t)(wr - data);
+}
+
+
+/*----------------------------------------------------------------------------*/
+/* Hand the parser at most MAX_DOCUMENT bytes.  A 4 MB machine cannot hold the
+ * DOM of a modern front page, and running out of memory half way through the
+ * parse loses the whole session; stopping at a tag boundary loses only the
+ * bottom of the page.  The cached copy stays whole, so raising the cap and
+ * reloading shows more without going back to the network.
+*/
+static void
+cap_document (LOADER loader)
+{
+	static const char html_note[] =
+		"\n<hr><p><b>Document truncated</b> because it is larger than "
+		"MAX_DOCUMENT.</p>\n";
+	static const char text_note[] = "\n\n[Document truncated: MAX_DOCUMENT]\n";
+
+	BOOL   is_html = (loader->MimeType == MIME_TXT_HTML);
+	const char * note = (is_html ? html_note        : text_note);
+	size_t       nlen = (is_html ? sizeof(html_note): sizeof(text_note));
+	char * data = loader->Data;
+	size_t keep;
+
+	if (!cfg_MaxDocument || !data || cfg_MaxDocument <= nlen
+	    || (ULONG)loader->DataSize <= cfg_MaxDocument) {
+		return;
+	}
+	/* reserve room for the notice inside the cap, then back up to the end of
+	 * the last complete tag so the parser never sees a half written '<'.
+	 * Bounded: no useful boundary lies further back than this, and without a
+	 * limit a document with no tags at all is walked to its start for nothing */
+	keep = (size_t)cfg_MaxDocument - nlen;
+	if (is_html) {
+		size_t tag = keep;
+		size_t min = (keep > 4096 ? keep - 4096 : 0);
+		while (tag > min && data[tag -1] != '>') tag--;
+		if (tag > min) keep = tag; /* else no tag boundary: cut where we are */
+	}
+	memcpy (data + keep, note, nlen);   /* nlen covers the terminating nul */
+	loader->DataSize = loader->DataFill = keep + nlen -1;
+
+	errprintf ("cap_document(): '%s' cut to %lu bytes.\n",
+	           loader->Location->File, (unsigned long)loader->DataSize);
+}
+
+
+/*----------------------------------------------------------------------------*/
+static BOOL
+start_parser (LOADER loader)
+{
+	SCHED_FUNC func = parse_plain;
+	BOOL       chk0 = FALSE;
+	PARSER     parser;
+
+	if (!loader->MimeType) {
+		loader->MimeType = MIME_TEXT;
+	}
+	if (MIME_Major (loader->MimeType) == MIME_TEXT && loader->DataFill > 0) {
+		/* DataFill is 0 for the small pages generated in this file, whose
+		 * bytes live only behind Data -- leave those alone */
+		size_t was = loader->DataFill;
+
+		if (loader->MimeType == MIME_TXT_HTML && loader->Data) {
+			loader->DataSize = loader->DataFill =
+				strip_scripts (loader->Data, loader->DataFill);
+		}
+		cap_document (loader);
+
+		/* Hand the shortfall back before the DOM starts competing for it:
+		 * the scripts of a modern page are most of its bytes, and holding a
+		 * megabyte of discarded markup through the parse is the opposite of
+		 * what both of the above are for.  Must precede new_parser(), which
+		 * latches Data.  Keeping the original on failure is always safe. */
+		if (loader->DataFill < was) {
+			char * p = realloc (loader->Data, loader->DataFill +3);
+			if (p) loader->Data = p;
+			/* the loaders terminate with three nuls, not one; keep that */
+			p = loader->Data + loader->DataFill;
+			p[0] = p[1] = p[2] = '\0';
+		}
+	}
+	parser = new_parser (loader);
+	
+	switch (loader->MimeType)
+	{
+		case MIME_IMAGE:
+			func = parse_image;
+			break;
+		
+		case MIME_TXT_HTML:
+			if (loader->Data) {
+				func = parse_html;
+				chk0 = TRUE;
+			
+			} else if (PROTO_isLocal(loader->Location->Proto)) {
+				func = parse_dir;
+			
+			} else { /* PROT_ABOUT -- also catch internal errors */
+				func = parse_about;
+			}
+			break;
+		
+		case MIME_TEXT: {
+			char * p = loader->Data;
+			while (isspace(*p)) p++;
+		#ifdef MOD_TROFF
+			if (p[0] == '.' &&
+			    (p[1] == '"' || (p[1] == '\\' && p[2] == '"') || isalpha(p[1]))) {
+				extern int parse_troff (void *, long);
+				func = parse_troff;
+				break;
+			}
+		#endif
+			while (strncmp(p, "<!--", 4) == 0 || strncmp(p, "<?xml", 5) == 0) {
+				long i = min(500, (long)(loader->Data - p) + loader->DataSize - 15);
+				while (--i > 0 && *(p++) != '>');
+				while (--i > 0 && isspace(*p)) p++;
+			}
+			if (strnicmp (p, "<html>",          6) == 0 ||
+			    strnicmp (p, "<!DOCTYPE HTML", 14) == 0) {
+				func = parse_html;
+				chk0 = TRUE;
+				break;
+			}
+		}
+		default: /* pretend it's plain text */ ;
+	}
+	
+	if (chk0) { /* check for invalid nul characters in html */
+		char * p = loader->Data, * q;
+		long   n = loader->DataSize;
+		while (n > 0l && (q = memchr (p, '\0', n)) != NULL) {
+			*q = ' ';
+			n -= q - p;
+			p  = q;
+		}
+	}
+	
+	return sched_insert (func, parser, (long)parser->Target, PRIO_FINISH);
+}
+
+/******************************************************************************/
+
+
+typedef struct s_ldr_chunk * LDRCHUNK;
+struct s_ldr_chunk {
+	LDRCHUNK next;
+	size_t   size;
+	char     data[1];
+};
+
+
+/*============================================================================*/
+LOADER
+new_loader (LOCATION loc, CONTAINR target, BOOL lookup)
+{
+	const char * appl = NULL;
+	LOADER loader = malloc (sizeof (struct s_loader));
+	loader->Location   = location_share (loc);
+	loader->Target     = target;
+	loader->Encoding   = ENCODING_WINDOWS1252;
+	loader->MimeType   = MIME_Unknown;
+	loader->Referer    = NULL;
+	loader->AuthRealm  = NULL;
+	loader->AuthBasic  = NULL;
+	loader->PostBuf    = NULL;
+	loader->FileExt[0] = '\0';
+	loader->MarginW    = -1;
+	loader->MarginH    = -1;
+	loader->ScrollV    = 0;
+	loader->ScrollH    = 0;
+	/* */
+	loader->Cached   = NULL;
+	loader->Tdiff    = 0;
+	loader->Date     = 0;
+	loader->Expires  = 0;
+	loader->DataSize = 0;
+	loader->DataFill = 0;
+	loader->Data     = NULL;
+	loader->notified = FALSE;
+	loader->Retry    = cfg_ConnRetry;
+	loader->Error    = E_OK;
+	/* */
+	loader->SuccJob = NULL;
+	loader->FreeArg = NULL;
+	/* */
+	loader->rdChunked = FALSE;
+	loader->rdSocket  = -1;
+	loader->rdLeft    = 0;
+	loader->rdDest    = NULL;
+	loader->rdTlen    = 0;
+	loader->rdList    = loader->rdCurr = NULL;
+
+	/* copy Authorization */
+	if (target) {
+		FRAME frame = containr_Frame (target);
+		if (frame && frame->AuthRealm  && frame->AuthBasic) {
+			loader->AuthRealm = strdup (frame->AuthRealm);
+			loader->AuthBasic = strdup (frame->AuthBasic);
+		}
+	}
+	
+	if (loc->Proto == PROT_FILE || PROTO_isRemote (loc->Proto)) {
+		loader->MimeType = mime_byExtension (loc->File, &appl, loader->FileExt);
+	}
+	
+	if (PROTO_isHttp (loc->Proto) && lookup) {
+		CACHED cached = cache_lookup (loc, 0, NULL);
+		if (cached) {
+			union { CACHED c; LOCATION l; } u;
+			u.c            = cache_bound (cached, &loader->Location);
+			loader->Cached = u.l;
+			if (!loader->MimeType) {
+				loader->MimeType = mime_byExtension (loader->Cached->File,
+				                                     &appl, NULL);
+			}
+		}
+	}
+	
+	loader->ExtAppl = (appl ? strdup (appl) : NULL);
+	
+	containr_notify (loader->Target, HW_ActivityBeg, NULL);
+	
+	return loader;
+}
+
+
+/*============================================================================*/
+void
+delete_loader (LOADER * p_loader)
+{
+	LOADER loader = *p_loader;
+	if (loader) {
+		if (loader->notified) {
+			containr_notify (loader->Target, HW_PageFinished, NULL);
+		}
+		containr_notify (loader->Target, HW_ActivityEnd, NULL);
+
+#ifdef USE_INET
+		if (loader->rdSocket >= 0) {
+			inet_close (loader->rdSocket);
+		}
+#endif /* USE_INET */
+		if (loader->rdList) {
+			LDRCHUNK chunk = loader->rdList, next;
+			do {
+				next =  chunk->next;
+				free (chunk);
+			} while ((chunk = next) != NULL);
+		}
+		if (loader->ExtAppl) {
+			free (loader->ExtAppl);
+		}
+		if (loader->Data) {
+			free (loader->Data);
+		}
+		if (loader->Cached) {
+			cache_release ((CACHED*)&loader->Cached, FALSE);
+		}
+		if (loader->PostBuf) {
+			delete_post (loader->PostBuf);
+		}
+		if (loader->AuthRealm) {
+			free (loader->AuthRealm);
+		}
+		if (loader->AuthBasic) {
+			free (loader->AuthBasic);
+		}
+		free_location (&loader->Referer);
+		free_location (&loader->Location);
+		free (loader);
+		*p_loader = NULL;
+	}
+}
+
+
+/*============================================================================*/
+LOADER
+start_page_load (CONTAINR target, const char * url, LOCATION base,
+                 BOOL u_act, POSTDATA post_buff)
+{
+	LOCATION loc    = (url ? new_location (url, base) : location_share (base));
+	LOADER   loader = NULL;
+	
+	if (loc->Proto == PROT_MAILTO || loc->Proto == PROT_FTP) {
+		start_application (NULL, loc);
+	
+	} else {
+		loader = start_cont_load (target, NULL, loc, u_act, (post_buff == NULL));
+		if (loader) {
+			loader->PostBuf = post_buff;
+		} else {
+			delete_post (post_buff);
+		}
+	}
+	free_location (&loc);
+	
+	return loader;
+}
+
+/*============================================================================*/
+LOADER
+start_cont_load (CONTAINR target, const char * url, LOCATION base,
+                 BOOL u_act, BOOL use_cache)
+{
+	LOCATION loc    = (url ? new_location (url, base) : location_share (base));
+	LOADER   loader = new_loader (loc, target, use_cache);
+	
+	free_location (&loc);
+	loc = (loader->Cached ? loader->Cached : loader->Location);
+	
+	if (!loader->notified) {
+		loader->notified = containr_notify (loader->Target, HW_PageStarted,
+		                                    loader->Location);
+	}
+	
+	if (loc->Proto == PROT_DIR) {
+		loader->MimeType = MIME_TXT_HTML;
+		sched_insert (parse_dir, new_parser (loader), (long)target, PRIO_INTERN);
+		
+	} else if (loc->Proto == PROT_ABOUT) {
+		loader->MimeType = MIME_TXT_HTML;
+		sched_insert (parse_about, new_parser (loader),(long)target, PRIO_INTERN);
+		
+	} else if (loc->Proto == PROT_HTTPS && !http_hasProxy()) {
+		/* tested ahead of the MIME check, so that https://host/pic.jpg says why
+		 * it failed instead of disappearing into parse_image */
+		error_page (loader, target, "https:// needs a proxy",
+		            "HighWire has no TLS of its own.  Set HTTP_PROXY in the "
+		            "config file to a proxy that terminates it.");
+
+	} else if (MIME_Major(loader->MimeType) == MIME_IMAGE) {
+		loader->MimeType = MIME_IMAGE;
+		sched_insert (parse_image, new_parser (loader),(long)target, PRIO_INTERN);
+		
+#ifdef USE_INET
+# ifdef MOD_MBOX
+	} else if (loc->Proto == PROT_POP) {
+		int parse_mbox (void*, long);
+		sched_insert (parse_mbox, new_parser (loader), (long)target, PRIO_INTERN);
+	
+# endif
+	} else if (proto_isFetchable (loc->Proto)) {
+		if (loader->ExtAppl) {
+			loader->SuccJob = generic_job;
+			containr_notify (loader->Target, HW_PageFinished, NULL);
+			loader->notified = FALSE;
+		}
+		sched_insert (header_job, loader, (long)target,
+		              (u_act ? PRIO_USERACT : PRIO_AUTOMATIC));
+#endif /* USE_INET */
+	
+	} else if (loc->Proto) {
+		char head [40];
+		sprintf (head, "Protocol #%i not supported!", loc->Proto);
+		error_page (loader, target, head, NULL);
+
+	} else if (loader->ExtAppl) {
+		start_application (loader->ExtAppl, loc);
+		delete_loader (&loader);
+		
+	} else {
+		sched_insert (loader_job, loader, (long)target, PRIO_LOADFILE);
+	}
+	
+	return loader;
+}
+
+/*============================================================================*/
+LOADER
+start_objc_load (CONTAINR target, const char * url, LOCATION base,
+                 int (*successor)(void*, long), void * objc)
+{
+	LOCATION loc  = new_location (url, base);
+	BOOL hdr_only = (!target && successor);
+	LOADER loader = new_loader (loc, target, !hdr_only);
+	
+	free_location (&loc);
+	loc = (loader->Cached ? loader->Cached : loader->Location);
+	
+	if (successor) {
+		loader->SuccJob = successor;
+	
+	} else if (loader->ExtAppl) {
+		loader->SuccJob = generic_job;
+	
+	} else {
+		errprintf ("start_objc_load(%s) dropped.\n", loc->FullName);
+		delete_loader (&loader);
+		return NULL;
+	}
+	loader->FreeArg = objc;
+	
+	if (PROTO_isLocal (loc->Proto)) {
+		sched_insert (loader->SuccJob, loader, (long)target, PRIO_SUCCESS);
+	
+#ifdef USE_INET
+	} else if (proto_isFetchable (loc->Proto)) {
+		sched_insert (header_job, loader, (long)target,
+		              (hdr_only ? PRIO_USERACT : PRIO_TRIVIAL));
+#endif
+	
+	} else {
+		errprintf ("start_objc_load() invalid protocol %i.\n", loc->Proto);
+		loader->Error = -EPROTONOSUPPORT;
+		(*loader->SuccJob)(loader, 0);
+		loader = NULL;
+	}
+	
+	return loader;
+}
+
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+#ifdef USE_INET
+static int
+chunked_job (void * arg, long invalidated)
+{
+	LOADER   loader = arg;
+	BOOL     s_recv = (loader->rdDest == NULL);
+	
+	if (invalidated) {
+		return receive_job (arg, invalidated);
+	}
+	
+	loader->rdDest = NULL;
+	loader->rdLeft = 0;
+	
+	while (1) {
+		char * data = loader->rdTemp;
+		size_t size = 0;
+		
+		if (!loader->rdChunked) {
+			if (loader->rdSocket >= 0) {
+				size = 8192;
+			}
+			if (size < loader->rdTlen) {
+				 size = loader->rdTlen;
+			}
+		} else {
+			long n = loader->rdTlen -2;
+			data   = (n > 0 ? memchr (data +2, '\n', n) : NULL);
+			if (!data) {
+				n = inet_recv (loader->rdSocket, loader->rdTemp + loader->rdTlen,
+				               sizeof (loader->rdTemp) - loader->rdTlen);
+
+				if (n > 0) {
+					loader->rdTlen += n;
+					if (loader->rdTlen > 2) {
+						data = memchr (loader->rdTemp +2, '\n', loader->rdTlen -2);
+					}
+				} else {
+
+					/* check for connection termination */
+					if (n == -ECONNRESET) {
+						inet_close (loader->rdSocket);
+						loader->rdSocket = -1;
+						loader->rdLeft   = 0;
+						break;
+					}
+				}
+			}
+
+			if (data) {
+				*(data++) = '\0';
+				if ((long)(size = strtoul (loader->rdTemp, NULL, 16)) <= 0) {
+					loader->rdTlen = 0; /* end of chunks */
+				} else {				
+					loader->rdTlen -= data - loader->rdTemp;
+				}
+			} else if (loader->rdTlen == sizeof(loader->rdTemp)) {
+				errprintf ("rotten chunk header\n");
+				loader->rdDest = NULL;
+				loader->rdLeft = 0;
+				break;
+			
+			} else {
+				if (!s_recv) {
+					sched_insert (chunked_job, loader, (long)loader->Target,
+					              PRIO_KEEP);
+				}
+				return TRUE;
+			}
+		}
+		
+		if (size) {
+			LDRCHUNK chunk = malloc (sizeof (struct s_ldr_chunk) + size -1);
+			if (!chunk) {
+				errprintf ("chunked_job(): out of memory\n");
+				loader->rdDest = NULL;
+				loader->rdLeft = 0;
+				break;
+			}
+			if (!loader->rdList) loader->rdList                   = chunk;
+			else                 ((LDRCHUNK)loader->rdCurr)->next = chunk;
+			loader->rdCurr = chunk;
+			loader->rdDest = chunk->data;
+			loader->rdLeft = size;
+			chunk->next = NULL;
+			chunk->size = size;
+			
+			if (loader->rdTlen) {
+				if (size > loader->rdTlen) {
+					 size = loader->rdTlen;
+				}
+				memcpy (loader->rdDest, data, size);
+				loader->rdDest   += size;
+				loader->rdLeft   -= size;
+				loader->DataFill += size;
+				
+				loader->rdTlen -= size;
+				if (loader->rdTlen) { /* there are still data in the temp buffer */
+					memmove (loader->rdTemp, data + size, loader->rdTlen);
+				}
+				if (!loader->rdLeft) {     /* chunk was completely filled from */
+					loader->rdDest = NULL;  /* the temp buffer                  */
+					continue;
+				}
+			}
+		}
+		break;
+	}
+	
+	if (!loader->rdDest) {
+		LDRCHUNK next = loader->rdList, chunk;
+		long     left = loader->DataFill;
+		char   * p    = loader->Data = malloc (left +3);
+		
+		if (!p) {
+			loader->Error = -ENOMEM;
+			loader->DataFill = left = 0;
+			if (!loader->PostBuf) cache_abort (loader->Location);
+		}
+		while ((chunk = next) != NULL) {
+			if (left > 0) {
+				memcpy (p, chunk->data, (left < chunk->size ? left : chunk->size));
+				p += chunk->size;
+			}
+			left -= chunk->size;
+			next =  chunk->next;
+			free (chunk);
+		}
+		loader->rdList   = loader->rdCurr = NULL;
+		loader->DataSize = loader->DataFill;
+		if (loader->rdChunked && left < 0) {
+			loader->DataSize -= left;
+		}
+	}
+	if (s_recv) {
+		sched_insert (receive_job, loader, (long)loader->Target, PRIO_KEEP);
+	}
+	
+	return JOB_DONE;
+}
+#endif /* USE_INET */
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+#ifdef USE_INET
+static int
+receive_job (void * arg, long invalidated)
+{
+	LOADER loader = arg;
+	
+	if (invalidated) {
+		if (!loader->PostBuf) {
+			cache_abort (loader->Location);
+		}
+		if (loader->SuccJob) {
+			(*loader->SuccJob)(arg, invalidated);
+		} else {
+			delete_loader (&loader);
+		}
+		return JOB_DONE;
+	}
+	
+	if (loader->rdLeft) {
+		long n = inet_recv (loader->rdSocket, loader->rdDest, loader->rdLeft);
+		int  r = JOB_AGED;
+
+		if (n < 0) { /* no more data available */
+			inet_close (loader->rdSocket);
+			loader->rdSocket = -1;
+			loader->rdLeft   = 0;
+		
+		} else if (n) {
+			loader->rdDest   += n;
+			loader->rdLeft   -= n;
+			loader->DataFill += n;
+		
+		} else {
+			r = JOB_NOOP;
+		}
+
+		if (loader->rdLeft) { 
+			return r;  /* re-schedule for next block of data */
+		}
+
+		if (!loader->DataSize) {
+			if (chunked_job (arg, 0)) {
+				return JOB_DONE;  /* chunk head need to be completed */
+			
+			} else if (loader->rdLeft) {
+				return r;  /* re-schedule for start of next chunk */
+			}
+		}
+
+	}
+	/* else download finished */
+	
+	if (loader->rdSocket >= 0) {
+		inet_close (loader->rdSocket);
+		loader->rdSocket   = -1;
+	}
+	if (loader->Data) {
+		char * p = loader->Data + loader->DataFill;
+		*(p++) = '\0';
+		*(p++) = '\0';
+		*(p)   = '\0';
+		
+		if (!loader->PostBuf || MIME_Major (loader->MimeType) != MIME_TEXT) {
+			const char * ext = mime_toExtension (loader->MimeType);
+			if (loader->PostBuf) {
+				loader->Expires = -1; /* mark to get deleted at program end */
+			}
+			loader->Cached = cache_assign (loader->Location, loader->Data,
+			                               loader->DataSize,
+			                               (ext && *ext ? ext : loader->FileExt),
+			                               loader->Date, loader->Expires);
+			if (loader->Cached) {
+				cache_bound (loader->Location, NULL);
+			}
+		}
+	}
+	if (loader->SuccJob) {
+		sched_insert (loader->SuccJob, loader,(long)loader->Target, PRIO_SUCCESS);
+	} else {
+		start_parser (loader);
+	}
+	return JOB_DONE;
+}	
+#endif /* USE_INET */
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+#ifdef USE_INET
+static int
+header_job (void * arg, long invalidated)
+{
+	LOADER   loader = arg;
+	LOCATION loc    = loader->Location;
+	
+	const char * host = NULL;
+	HTTP_HDR     hdr;
+	short        sock = -1;
+	short        reply;
+	char       * auth = NULL;
+	
+	BOOL hdr_only = (!loader->Target && loader->SuccJob);
+	BOOL cache_lk = (!loader->PostBuf && !hdr_only);
+#define CACHE_ABORT(loc)   { if (cache_lk) cache_abort (loc); }
+	
+	if (invalidated) {
+		if (loader->SuccJob) {
+			(*loader->SuccJob)(arg, invalidated);
+		} else {
+			delete_loader (&loader);
+		}
+		return JOB_DONE;
+	}
+	
+	if (cache_lk) switch (CResultDsk (cache_exclusive (loc))) {
+		
+		case CR_BUSY:
+		/*	printf ("header_job(%s): cache busy\n", loc->FullName);*/
+			return JOB_KEEP;
+		
+		case CR_LOCAL: {
+			CACHED cached = cache_lookup (loc, 0, NULL);
+			if (cached) {
+				union { CACHED c; LOCATION l; } u;
+				u.c            = cache_bound (cached, &loader->Location);
+				loader->Cached = u.l;
+				if (!loader->MimeType) {
+					loader->MimeType = mime_byExtension (loader->Cached->File,
+					                                     NULL, NULL);
+				}
+			/*	printf ("header_job(%s): cache hit\n", loc->FullName);*/
+				if (loader->SuccJob) {
+					sched_insert (loader->SuccJob,
+					              loader, (long)loader->Target, PRIO_SUCCESS);
+				} else {
+					sched_insert (loader_job,
+					              loader, (long)loader->Target, PRIO_LOADFILE);
+				}
+				return JOB_DONE;
+			
+			} else { /* cache inconsistance error */
+				errprintf ("header_job(%s): not in cache!\n", loc->FullName);
+				return header_job (arg, (long)loader->Target); /* invalidate */
+			}
+		} /*break;*/
+	}	
+	
+	/* Connect to host
+	*/
+	if (loader->Target) {
+		if ((host = location_Host (loc, NULL)) != NULL && !*host) host = NULL;
+	}
+	if (host) {
+		char buf[300];
+		sprintf (buf, "Connecting: %.*s", (int)(sizeof(buf) -13), host);
+		containr_notify (loader->Target, HW_SetInfo, buf);
+	}
+	while(1) { /* authorization loop */
+		do {
+			long tout = (loader->SuccJob ? hdr_tout_gfx : hdr_tout_doc);
+			reply = http_header (loc, &hdr, sizeof (loader->rdTemp) -2,
+			                     &sock, tout, loader->Referer, auth, loader->PostBuf);
+		} while (reply == 100);
+		
+		if (reply == -ECONNRESET || reply == -ETIMEDOUT) {
+			if (loader->Retry) {
+				CACHE_ABORT(loc);
+				loader->Retry--;
+				return JOB_KEEP; /* try connecting later */
+			}
+		}
+		if (reply == -35/*EMFILE*/) {
+			CACHE_ABORT(loc);
+			return JOB_KEEP; /* too many open connections yet, try again later */
+		}
+		
+		if (reply == 401) {
+			if (!auth && hdr.Realm && loader->AuthBasic && loader->AuthRealm
+			          && strcmp (loader->AuthRealm, hdr.Realm) == 0) {
+				inet_close (sock);
+				sock = -1;
+				auth = loader->AuthBasic;
+				continue;
+			}
+			if (loader->AuthRealm) {
+				free (loader->AuthRealm);
+				loader->AuthRealm = NULL;
+			}
+			if (loader->AuthBasic) {
+				free (loader->AuthBasic);
+				loader->AuthBasic = NULL;
+			}
+			if (hdr.Realm && !loader->SuccJob && !hdr_only) {
+				const char form[] =
+					"<html><head><title>%.*s</title></head>"
+					"<body bgcolor=\"white\">"
+					"<h1>Authorization Required</h1>&nbsp;<br>"
+					"Enter user name and password for <q><b>%s</b></q> at <b>%s</b>:"
+					"<form method=\"AUTH\">"
+					"<table border=\"0\">"
+					"<tr><td align=right>User:&nbsp;"
+					    "<td><input type=\"text\" name=\"USR\">"
+					"<tr><td align=right>Password:&nbsp;"
+					    "<td><input type=\"password\" name=\"PWD\">"
+					"<tr><td align=right>"
+					      "<input type=\"submit\" value=\"Login\">&nbsp;"
+					"</table></form>&nbsp;<p><hr size=\"1\">"
+					"\n<small><pre>%s</pre></small>\n"
+					"</bod></html>";
+				const char * titl = hdr.Head, * text;
+				size_t       titl_s, size;
+				while (*titl && !isspace(*titl)) titl++;
+				while (isspace(*titl))           titl++;
+				text = titl;
+				while (*text && *text != '\r' && *text != '\n') text++;
+				titl_s = text - titl;
+				while (isspace(*text)) text++;
+				size = sizeof(form)
+				     + titl_s + strlen(hdr.Realm) + strlen(host) + strlen (text);
+				if ((loader->AuthRealm = strdup (hdr.Realm)) != NULL &&
+				    (loader->Data = malloc (size)) != NULL) {
+					inet_close (sock);
+					sock = -1;
+					CACHE_ABORT(loc);
+					size = sprintf (loader->Data, form,
+					                (int)titl_s, titl, hdr.Realm, host, text);
+					loader->Data[++size] = '\0';
+					loader->Data[++size] = '\0';
+					loader->MimeType = MIME_TXT_HTML;
+					start_parser (loader);
+					return JOB_DONE;
+				}
+			}
+		}
+		break;
+	}
+	/* Check for HTTP header redirect
+	*/
+	if ((reply == 301 || reply == 302 || reply == 303) && hdr.Rdir) {
+		LOCATION redir  = new_location (hdr.Rdir, loader->Location);
+		CACHED   cached;
+
+		/* new_loader() tests the protocol of the location the reader asked
+		 * for.  This is a different one, and a http address whose entire
+		 * content is "go to https" is by far the commonest way to arrive at
+		 * a protocol we cannot speak -- most of the web answers port 80
+		 * with nothing else.  Without this the new location is simply
+		 * dialled, as cleartext, against port 443, where it waits out every
+		 * retry against a server that will not talk to it.
+		 * Tested before the cache is consulted, so that nothing has been
+		 * taken that would have to be given back here.
+		*/
+		if (redir && redir->Proto == PROT_HTTPS && !http_hasProxy()) {
+			inet_close (sock);
+			CACHE_ABORT(loc);
+			free_location (&redir);
+			error_page (loader, loader->Target, "https:// needs a proxy",
+			            "This address redirects to https, and HighWire has "
+			            "no TLS of its own.  Set HTTP_PROXY in the config "
+			            "file to a proxy that terminates it.");
+			return JOB_DONE;
+		}
+		cached = (hdr_only ? NULL : cache_lookup (redir, 0, NULL));
+		inet_close  (sock);
+		CACHE_ABORT(loc);
+
+		if (!loader->MimeType) {
+			loader->MimeType = mime_byExtension (redir->File, NULL, NULL);
+		}
+		if (cached) {
+			union { CACHED c; LOCATION l; } u;
+	 		if (loader->Cached) {
+ 				cache_release ((CACHED*)&loader->Cached, FALSE);
+ 			}
+			u.c = cache_bound (cached, &loader->Location);
+			loader->Cached = loc = u.l;
+			free_location (&redir);
+			if (loader->SuccJob) {
+				sched_insert (loader->SuccJob,
+				              loader, (long)loader->Target, PRIO_SUCCESS);
+			} else {
+				sched_insert (loader_job,
+				              loader, (long)loader->Target, PRIO_LOADFILE);
+			}
+			return JOB_DONE;
+		
+		} else {
+			free_location (&loader->Location);
+			loader->Location = loc = redir;
+			return JOB_KEEP; /* re-schedule with the new location */
+		}
+	}
+	
+	/* start loading
+	*/
+	if (hdr.MimeType) {
+		if (MIME_Major (hdr.MimeType) && MIME_Minor (hdr.MimeType)
+		    && (MIME_Major (loader->MimeType) != MIME_Major (hdr.MimeType)
+			     || !MIME_Minor (loader->MimeType))) {
+			loader->MimeType = hdr.MimeType;
+		}
+		if (hdr.Encoding) {
+			loader->Encoding = hdr.Encoding;
+		}
+	}
+	if (reply == 200) {
+		if (host) {
+			char buf[300];
+			sprintf (buf, "Receiving from %.*s", (int)(sizeof(buf) -16), host);
+			containr_notify (loader->Target, HW_SetInfo, buf);
+		}
+		loader->Date  = (hdr.Modified > 0 ? hdr.Modified : hdr.SrvrDate);
+		loader->Tdiff = hdr.LoclDate - hdr.SrvrDate;
+		if (hdr.Expires > 0) {
+			loader->Expires = hdr.Expires + loader->Tdiff;
+		} else if (hdr.Modified <= 0) {
+			/* none valid date given at all, so we assume a dynamic page
+			 * (eg. from php) that needs to be revisited at the next session */
+			loader->Expires = -1; /* mark to get deleted at program end */
+		}
+		
+		if (hdr_only) {
+			loader->DataSize = hdr.Size;
+			if ((loader->rdChunked = hdr.Chunked) == TRUE) {
+				loader->rdTemp[0] = '\r';
+				loader->rdTemp[1] = '\n';
+				loader->rdTlen = 2;
+			}
+			if (hdr.Tlen) {
+				memcpy (loader->rdTemp + loader->rdTlen, hdr.Tail, hdr.Tlen);
+				loader->rdTlen += hdr.Tlen;
+			}
+			loader->rdSocket = sock;
+			sched_insert (loader->SuccJob, loader, (long)0, PRIO_RECIVE);
+			return JOB_DONE;
+		
+		} else if (hdr.Size >= 0 && !hdr.Chunked
+		           && (hdr.Size >= (long)Malloc (-1L) /2
+		               || (loader->Data = malloc (hdr.Size +3)) == NULL)) {
+			/* A 7 MB animated GIF on a 4 MB machine: neither the file nor
+			 * what is decoded from it would fit, so refuse it here rather
+			 * than write through the null pointer. */
+			static char note[100];
+			sprintf (note, "<b>Too large</b><p><font size=\"2\">"
+			         "%ld bytes will not fit in the memory left.</font>",
+			         hdr.Size);
+			hdr.Head      = note;
+			loader->Error = -ENOMEM;
+		
+		} else if (hdr.Size >= 0 && !hdr.Chunked) {
+			loader->rdDest   = loader->Data;
+			loader->DataSize = loader->rdLeft = hdr.Size;
+			loader->DataFill = hdr.Tlen;
+			if (loader->DataFill) {
+				if (loader->DataFill > loader->rdLeft) {
+					 loader->DataFill = loader->rdLeft;
+				}
+				memcpy (loader->rdDest, hdr.Tail, loader->DataFill);
+				loader->rdDest += loader->DataFill;
+				loader->rdLeft -= loader->DataFill;
+			}
+			if (sock < 0 || !loader->rdLeft) {
+				loader->rdDest[0] = '\0';
+				loader->rdDest[1] = '\0';
+				loader->rdDest[2] = '\0';
+				/* nothing more to do, falls through */
+			} else {
+				loader->rdSocket = sock;
+				sched_insert (receive_job,
+				              loader, (long)loader->Target, PRIO_RECIVE);
+				return JOB_DONE;
+			}
+		
+		} else {
+			if ((loader->rdChunked = hdr.Chunked) == TRUE) {
+				loader->rdTemp[0] = '\r';
+				loader->rdTemp[1] = '\n';
+				loader->rdTlen = 2;
+			}
+			if (hdr.Tlen) {
+				memcpy (loader->rdTemp + loader->rdTlen, hdr.Tail, hdr.Tlen);
+				loader->rdTlen += hdr.Tlen;
+			}
+			loader->rdSocket = sock;
+			sched_insert (chunked_job, loader, (long)loader->Target, PRIO_RECIVE);
+			return JOB_DONE;
+		}
+	
+	} else { /* something went wrong */
+		loader->Error = reply;
+	}
+	
+	inet_close (sock);
+	
+	/* if it is a short file and already finished, end proceedings
+	*/
+	if (loader->Data) {
+		return receive_job (loader, 0);
+	}
+	
+	/*  an error case occured
+	*/
+	CACHE_ABORT(loc);
+	
+	/* The error texts carry markup for a small description under the title,
+	 * and anything without markup reads the same either way.
+	*/
+	loader->MimeType = MIME_TXT_HTML;
+	loader->Data     = strdup (hdr.Head);
+	
+	if (loader->SuccJob) {
+		(*loader->SuccJob)(loader, 0);
+	} else {
+		start_parser (loader);
+	}
+	
+#undef CACHE_ABORT
+	
+	return JOB_DONE;
+}
+#endif /* USE_INET */
+
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+static int
+loader_job (void * arg, long invalidated)
+{
+	LOADER   loader = arg;
+	LOCATION loc    = (loader->Cached ? loader->Cached : loader->Location);
+	
+	if (invalidated) {
+		delete_loader (&loader);
+		return JOB_DONE;
+	}
+	
+	if (!loader->notified) {
+		loader->notified = containr_notify (loader->Target, HW_PageStarted,
+		                                    loader->Location);
+	}
+	
+	loader->Data = load_file (loc, &loader->DataSize, &loader->DataFill);
+	if (!loader->Data) {
+		char   buf[1024]  = "<html><head><title>Error</title></head>"
+		                    "<body><h1>Page not found!</h1>\n<u><pre>";
+		size_t n          = strlen (buf);
+		const char tail[] = "</pre></u>\n</body></html>";
+		n += location_FullName (loc, buf + n, sizeof(buf) - n - sizeof(tail));
+		strcpy (buf + n, tail);
+		
+		loader->Error    = -ENOENT;
+		loader->Data     = strdup (buf);
+		loader->MimeType = MIME_TXT_HTML;
+	}
+	/* registers a parser job with the scheduler */
+	start_parser (loader);
+
+	return JOB_DONE;
+}
+
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+static int
+generic_job (void * arg, long invalidated)
+{
+	LOADER loader = arg;
+	
+	if (!invalidated && !loader->Error) {
+		LOCATION loc = (loader->Cached ? loader->Cached : loader->Location);
+		
+		if (!loader->ExtAppl) {
+			errprintf ("generic_job(): no appl found!\n");
+		
+		} else if (PROTO_isRemote (loc->Proto)) {
+			errprintf ("generic_job(): not in cache!\n");
+		
+		} else {
+			start_application (loader->ExtAppl, loc);
+		}
+	}
+	delete_loader (&loader);
+	
+	return JOB_DONE;
+}
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+int
+saveas_job (void * arg, long invalidated)
+{
+	LOADER loader = arg;
+	char fsel_file[HW_PATH_MAX] = "";
+/*	WORD r, butt;*/  /* file selector exit button */
+	int    fh1, fh2;
+	long fsize, bsize, rsize, csize = 0, nsize, ssize;
+	char *buffer;
+	char *p;
+	HwWIND wind = hwWind_byContainr (loader->Target);
+				
+	if (!invalidated && !loader->Error) {
+		LOCATION loc = (loader->Cached ? loader->Cached : loader->Location);
+		LOCATION remote = loader->Location;
+
+		if (PROTO_isRemote (loc->Proto)) {
+			errprintf ("saveas_job(): not in cache!\n");
+		
+		} else {
+			/* get cache file size */
+			fsize =	file_size(loc);
+
+			if (fsize <= 0)
+			{
+				hwUi_warn ("Save as", "File is empty, nothing saved.");
+				goto saveas_bottom;
+			}
+
+			/* remote->file is the remote filename, with the possibility
+			 * of extra characters
+			 * ssize is the start size of the remote file
+			 * nsize is the size of everything after a ?
+			 */
+	
+			p = strrchr (remote->File, '?');
+
+			nsize = (p ? strlen(p) : 0);
+			ssize = strlen(remote->File);
+			ssize -= nsize;
+			if (ssize >= sizeof (fsel_file)) {
+				ssize = sizeof (fsel_file) -1;
+			}
+			memcpy (fsel_file, remote->File, ssize);
+			fsel_file[ssize] = '\0';
+			
+			/* get our new filename */
+			
+			if (file_selector ("HighWire: Save File as...", NULL,
+			                   fsel_file, fsel_file,sizeof(fsel_file))) {
+				if ((fh2 = open (fsel_file, O_RDWR|O_CREAT|O_TRUNC, 0666)) >= 0) {
+					/* get our cache file name */
+					location_FullName (loc, va_helpbuf, HW_PATH_MAX *2);
+
+					/* attempt to open cache file */
+					fh1 = open (va_helpbuf, O_RDONLY);
+					
+					if (fh1 < 0) {
+							hwUi_warn ("Save as", "File not found in cache.");
+							close (fh2);
+							goto saveas_bottom;
+						}
+
+					/* max 32k buffer to read/write */
+					if (fsize < 32000)
+						bsize = fsize;
+					else
+						bsize = 32000;
+										
+					buffer = malloc(bsize);
+
+					if (!buffer) {
+						close (fh1);
+						close (fh2);
+						hwUi_warn ("Save as", "Not enough memory left!");
+						goto saveas_bottom;
+					}
+														
+					while (csize < fsize)
+					{
+						rsize = read (fh1, buffer, bsize);
+						write (fh2, buffer, rsize);
+						csize += rsize;
+					}
+	
+					/* done so close our files */
+					close (fh1);
+					close (fh2);
+
+					/* and release our buffer */
+					free(buffer);
+					
+				} else {
+					hwUi_warn ("Save as", "Cannot create target file.");
+				}
+				/* We don't worry about the else as all is done above */
+			}
+		}
+	}
+
+saveas_bottom:
+	
+	delete_loader (&loader);
+
+	/* We should close the window here	 */
+	if (wind) {
+		delete_hwWind (wind);
+	}
+
+	return JOB_DONE;
+}
+
+
+/*----------------------------------------------------------------------------*/
+static short
+start_application (const char * appl, LOCATION loc)
+{
+	(void) appl;
+	
+	if (av_shell_id >= 0) {
+		short msg[8] = { AV_STARTPROG, };
+		msg[1] = gl_apid;
+		msg[2] = msg[5] = msg[6] = msg[7] = 0;
+		*(char**)(msg +3) = va_helpbuf;
+		location_FullName (loc, va_helpbuf, HW_PATH_MAX *2 );
+		appl_write (av_shell_id, 16, msg);
+	}
+	return av_shell_id;
+}
+
+
+/*==============================================================================
+ * small routine to call external viewer to view the SRC to
+ * a file so that realtime comparisons can be made
+ * mlutz February 26, 2006 with the help of Djordje Vukovic
+*/
+void
+launch_viewer(const char *name)
+{
+	char *p = 0;
+	
+	if (av_shell_id >= 0) {
+		short msg[8];
+		msg[0] = (AV_STARTPROG);
+		msg[1] = gl_apid;
+		msg[2] = 0;
+		
+		if (cfg_Viewer && mime_byExtension (name, NULL, NULL) == MIME_TXT_HTML) {
+			strcpy (va_helpbuf, cfg_Viewer); 	 /* copy full name of the programm */
+			p = va_helpbuf + strlen (va_helpbuf) +1; /* position after the \0 of string */
+			strcpy (p, name); 			 /* file path copied to va_helpbuf */
+			
+			*(char**)(msg +3) = va_helpbuf; /* pointer to program name */
+			*(char**)(msg +5) = p;          /* pointer to file path for the program */
+			msg[7] = 0;
+		} else {
+			*(char**)(msg +3) = strcpy (va_helpbuf,name); /* pointer to file path, AVSERVER starts the appropiate program */
+			msg[5] = msg [6] = msg[7] = 0;
+		}		
+		appl_write (av_shell_id, 16, msg);
+		send_olga_link ( name );
+	}
+}
+
+
+/******************************************************************************/
+
+/*============================================================================*/
+/* Get the size of a file from the cache, predominately */
+
+long
+file_size (const LOCATION loc)
+{
+	const char *filename = loc->FullName;
+	long         size = 0;
+	struct xattr file_info;
+	long         xret = F_xattr(0, filename, &file_info);
+	
+	if (xret == E_OK) {  /* Fxattr() exists */
+		size = file_info.st_size;
+	
+	} else if (xret == -EINVFN) {  /* here for TOS filenames */
+		DTA  new, * old = Fgetdta();
+		Fsetdta(&new);
+
+		if (Fsfirst(filename, 0) == E_OK) {
+			size = new.d_length;
+		}
+		Fsetdta(old);
+	
+	} else {
+		size = -1;
+	}
+	
+	return(size);
+}
+
+
+/*============================================================================*/
+char *
+load_file (const LOCATION loc, size_t * expected, size_t * loaded)
+{
+	long   size = file_size (loc);
+	char * file = NULL;
+	
+	*expected = (size > 0 ? size : 0);
+	
+	if (size < 0 || (file = malloc (size + 3)) == NULL) {
+		size = 0;
+	
+	} else {
+		const char * filename = loc->FullName;
+		int          fh       = open (filename, O_RDONLY);
+		if (fh < 0) {
+			size = 0;
+		} else {
+			size = read (fh, file, size);
+			close (fh);
+		}
+		file[size +0] = '\0';
+		file[size +1] = '\0';
+		file[size +2] = '\0';
+	}
+	*loaded = size;
+	
+	return file;
+}
+
+
+/*==============================================================================
+ * init_paths()
+ *
+ * Handles the initialization of the file paths
+ *
+ *  Currently just sets last_location to something in the directory
+ * from which HighWire was launched, so that people on certain
+ * systems can get the default values
+ *
+ * this could be useful for config files, RSC files etc.
+ *
+ * baldrick (August 14, 2001)
+*/
+void
+init_paths(void)
+{
+	char temp_location[HW_PATH_MAX];
+
+	temp_location[0] = Dgetdrv();
+	temp_location[0] += (temp_location[0] < 26 ? 'A' : -26 + '1');
+	temp_location[1] = ':';
+	Dgetpath (temp_location + 2, 0);
+
+	if (temp_location[strlen(temp_location) - 1] != '\\') {
+		strcat(temp_location,"\\");
+	}
+	strcpy(fsel_path, temp_location);  /* used by the first file selector call */
+	strcat(fsel_path, "html\\*.[HJPT]*");  /* uppercase is for the TOS file selector */
+
+	strcpy(help_file, temp_location);  /* used for keyboard F1 or Help */
+	strcat(help_file, "html\\help\\index.htm");
+}
+
+/*============================================================================*/
+/* new_post:
+ * allocates a new POSTDATA struct with given buffer, length and type
+ * delete_post:
+ * detroys the POSTDATA along with its content
+ */
+POSTDATA
+new_post(char *buffer, size_t length, char *type)
+{
+	POSTDATA post = (POSTDATA) malloc(sizeof(struct s_post));
+	if (post != NULL)
+	{
+		post->Buffer = buffer;
+		post->BufLength = length;
+		post->ContentType = type;
+	}
+	return post;
+}
+
+void
+delete_post(POSTDATA post)
+{
+	if (post)
+	{
+		if (post->Buffer)
+		{
+			free(post->Buffer);
+		}
+		if (post->ContentType)
+		{
+			free(post->ContentType);
+		}
+		free(post);
+	}
+	return;
+}

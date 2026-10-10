@@ -64,12 +64,34 @@ __pycache__/
 Emulators/
 docs/*.pdf
 
-# Under GEM/ only our own examples are kept.  The rest is other people's
-# source, cloned to work from and not ours to redistribute, along with the
-# build trees and the media that go with it.  A list of what to leave out
-# would name each of them; a list of what to keep does not.
+# Under GEM/ we keep what is ours and what we are free to pass on.  The
+# rest is other people's source, cloned to work from, along with the build
+# trees and the media that go with it.  A list of what to leave out would
+# name each of them; a list of what to keep does not.
+#
+# HighWire is kept as content rather than as a clone.  GEM/highwire-upstream/
+# is the git clone that follows neilrackett/atarist-highwire and is where
+# merges with him are done; GEM/highwire/ is the result of those, which is
+# what build.sh reads and what is published here.  Since 0.4.6 it is GPL v3
+# and carries its own LICENSE, so unlike the rest of GEM/ it is ours to pass
+# on -- see docs/licensing.md.  Its own .gitignore keeps build/ and the
+# object files out; only the vendored lib/**/*.a are deliberately kept.
 GEM/*
 !GEM/examples/
+!GEM/highwire/
+
+# The port: the compatibility layer, the build and the write-up.  Not the
+# object files it leaves behind, and not the unpacked tarballs of zlib,
+# libpng, libjpeg and giflib -- those are 25 MB that highwire-libs/build.sh
+# fetches for itself, and which HighWire has vendored in lib/ since 0.4.6
+# anyway.
+!GEM/highwire-notes/
+GEM/highwire-notes/obj/
+GEM/highwire-notes/out/
+GEM/highwire-notes/*.bak
+!GEM/highwire-libs/
+GEM/highwire-libs/*
+!GEM/highwire-libs/build.sh
 
 # Raw camera output: phone videos and photographs straight off the device,
 # which are tens of megabytes each and would weigh a hundred times what all
